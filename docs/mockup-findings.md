@@ -33,7 +33,7 @@ Every server is uvicorn on `127.0.0.1` on an OS-chosen port, run in-process in a
 
 ### Results (real run)
 
-**Current (Windows, 2026-10-27): 209 passed, 10 xfailed, 0 failed** in about 163 s, after adding the domain packs, catalog store, policy, decimal quantities and lost-callback tests. The original run, before those, was 75 passed, 9 xfailed in about 97 s; its tests were written first, and its first run failed at collection because `beckn_mock.network` did not exist yet.
+**Current (Windows, 2026-10-27): 211 passed, 10 xfailed, 0 failed** in about 173 s, after adding the domain packs, catalog store, policy, decimal quantities and lost-callback tests. The original run, before those, was 75 passed, 9 xfailed in about 97 s; its tests were written first, and its first run failed at collection because `beckn_mock.network` did not exist yet.
 
 Mutation checks confirmed the tests can detect failures (run against the original 75-test suite). I disabled one control at a time:
 
