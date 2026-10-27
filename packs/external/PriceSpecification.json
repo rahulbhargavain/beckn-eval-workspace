@@ -1,0 +1,9 @@
+{
+  "context": "https://schema.nfh.global/PriceSpecification/v2.2/context.jsonld",
+  "types": [
+    "PriceSpecification"
+  ],
+  "validation": "deferred",
+  "source": "beckn/schemas schema/PriceSpecification/v2.2 (commit a3cab3d, 2026-09-02)",
+  "note": "Context URL follows the schema.nfh.global/<Name>/<ver>/context.jsonld pattern; not resolved. Structural validation is deferred until a pinned local mirror exists. The catalog store still checks currency and a numeric value."
+}

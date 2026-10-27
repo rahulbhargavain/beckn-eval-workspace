@@ -16,7 +16,7 @@ Read [MEMORY.md](MEMORY.md) first: it holds the domain background and decisions 
 - `tests/fixtures/` sample payloads and signed-message vectors
 - `docs/` evaluation notes and stack comparisons
 - `conformance/` Peppol-style certification runner and admission gate (see `docs/conformance.md`)
-- `packs/` domain schema packs (data only; see `docs/domain-packs.md`)
+- `packs/` domain schemas, policies and sample catalogs (data only; see `docs/domain-packs.md`)
 - `scripts/` runners (`scripts/test.ps1`; add a stack-specific unit-test command here once a stack is chosen)
 
 ## Commands

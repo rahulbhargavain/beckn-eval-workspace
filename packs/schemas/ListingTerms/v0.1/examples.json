@@ -1,0 +1,36 @@
+{
+  "valid": [
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/ListingTerms/v0.1/context.jsonld",
+      "@type": "ListingTerms",
+      "unitCode": "DAY",
+      "cancellationPolicyId": "policy-free-48h"
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/ListingTerms/v0.1/context.jsonld",
+      "@type": "ListingTerms",
+      "unitCode": "C62"
+    }
+  ],
+  "invalid": [
+    {
+      "layer": "schema",
+      "reason": "empty cancellation policy id",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/ListingTerms/v0.1/context.jsonld",
+        "@type": "ListingTerms",
+        "unitCode": "DAY",
+        "cancellationPolicyId": ""
+      }
+    },
+    {
+      "layer": "policy",
+      "reason": "unit outside the controlled vocabulary",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/ListingTerms/v0.1/context.jsonld",
+        "@type": "ListingTerms",
+        "unitCode": "FORTNIGHT"
+      }
+    }
+  ]
+}

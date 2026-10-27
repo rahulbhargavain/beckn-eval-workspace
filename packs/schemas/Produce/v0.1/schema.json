@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/schema.json",
+  "title": "Produce",
+  "description": "Compliance and freshness facts for agricultural produce. Name, grade and description belong in the Descriptor.",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type"
+  ],
+  "properties": {
+    "@context": {
+      "type": "string"
+    },
+    "@type": {
+      "type": "string"
+    },
+    "originCountry": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "harvestDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

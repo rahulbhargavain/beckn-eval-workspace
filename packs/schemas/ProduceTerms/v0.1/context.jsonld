@@ -1,0 +1,11 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "bk": "https://packs.beckn-eval.invalid/schemas/ProduceTerms/v0.1/",
+    "schema": "https://schema.org/",
+    "ProduceTerms": "bk:ProduceTerms",
+    "unitCode": "bk:unitCode",
+    "minOrderQuantity": "bk:minOrderQuantity",
+    "deliveryLeadDays": "bk:deliveryLeadDays"
+  }
+}

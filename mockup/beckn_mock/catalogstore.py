@@ -22,14 +22,15 @@ def _digest(obj):
 
 
 class CatalogStore:
-    def __init__(self, packs):
+    def __init__(self, packs, policy=None):
         self.packs = packs
+        self.policy = policy
         self._versions = {}   # catalog id -> [{"version", "published_at", "catalog"}]
         self._inactive = set()
 
     @classmethod
-    def from_dir(cls, directory, packs):
-        store = cls(packs)
+    def from_dir(cls, directory, packs, policy=None):
+        store = cls(packs, policy)
         for path in sorted(Path(directory).glob("*.json")):
             try:
                 store.publish(json.loads(path.read_text(encoding="utf-8")))
@@ -58,7 +59,8 @@ class CatalogStore:
 
         def check(path, attrs):
             errs.extend(f"{path}{e}" if e.startswith("[") or e.startswith(".") else f"{path}: {e}"
-                        for e in self.packs.attribute_errors(attrs))
+                        for e in self.packs.attribute_errors(attrs) + (
+                            self.policy.attribute_errors(attrs) if self.policy else []))
 
         if "providerAttributes" in cat["provider"]:
             check("provider.providerAttributes", cat["provider"]["providerAttributes"])

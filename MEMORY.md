@@ -27,5 +27,5 @@ Open Commerce / ONDC profile (Beckn-based, India), Shopify/UCP-style or ACP agen
 - Spec contradictions to raise upstream or pin a stance on (callback replay rules, digest prefix, Context required fields): see docs/mockup-findings.md.
 
 ## Domain packs (added 2026-10-27)
-- `packs/` holds workspace-owned, experimental schema packs (agri-produce, energy-der, tourism-listing, pricing-core); contexts under `packs.beckn-eval.invalid`. UNVERIFIED against upstream beckn/schemas and beckn/DEG. See docs/domain-packs.md.
+- `packs/` holds workspace-owned, experimental schemas (Produce, EnergySource, Listing and their *Terms types), laid out one dir per schema/version, with mandatory fields and vocabularies in `packs/policies/`; contexts under `packs.beckn-eval.invalid`. UNVERIFIED against upstream beckn/schemas and beckn/DEG (energy placeholders to be replaced by DEG). See docs/domain-packs.md.
 - BPP serves a multi-catalog `CatalogStore` (mockup/beckn_mock/catalogstore.py); only `textSearch` discovery is implemented.

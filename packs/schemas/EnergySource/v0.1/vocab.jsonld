@@ -1,0 +1,50 @@
+{
+  "@context": {
+    "bk": "https://packs.beckn-eval.invalid/schemas/EnergySource/v0.1/",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "schema": "https://schema.org/"
+  },
+  "@graph": [
+    {
+      "@id": "bk:EnergySource",
+      "@type": "rdfs:Class",
+      "rdfs:subClassOf": "schema:Product"
+    },
+    {
+      "@id": "bk:source/SOLAR_PV",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    },
+    {
+      "@id": "bk:source/WIND",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    },
+    {
+      "@id": "bk:source/HYDRO",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    },
+    {
+      "@id": "bk:source/BIOGAS",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    },
+    {
+      "@id": "bk:source/CHP",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    },
+    {
+      "@id": "bk:source/FUEL_CELL",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    },
+    {
+      "@id": "bk:source/BATTERY",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:EnergySourceKind"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/schema.json",
+  "title": "Listing",
+  "description": "Filterable facts for a tourism listing. Name, place description and media belong in the Descriptor.",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type"
+  ],
+  "properties": {
+    "@context": {
+      "type": "string"
+    },
+    "@type": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "countryCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "capacity": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

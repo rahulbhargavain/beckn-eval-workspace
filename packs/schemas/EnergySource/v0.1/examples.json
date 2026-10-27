@@ -1,0 +1,41 @@
+{
+  "valid": [
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/EnergySource/v0.1/context.jsonld",
+      "@type": "EnergySource",
+      "sourceType": "SOLAR_PV",
+      "capacityKw": 5.5,
+      "meterId": "MTR-0001"
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/EnergySource/v0.1/context.jsonld",
+      "@type": "EnergySource",
+      "sourceType": "BATTERY",
+      "capacityKw": 3,
+      "meterId": "MTR-0002"
+    }
+  ],
+  "invalid": [
+    {
+      "layer": "schema",
+      "reason": "capacity must be positive",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/EnergySource/v0.1/context.jsonld",
+        "@type": "EnergySource",
+        "sourceType": "SOLAR_PV",
+        "capacityKw": 0,
+        "meterId": "M1"
+      }
+    },
+    {
+      "layer": "policy",
+      "reason": "meterId is required for settlement",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/EnergySource/v0.1/context.jsonld",
+        "@type": "EnergySource",
+        "sourceType": "WIND",
+        "capacityKw": 3
+      }
+    }
+  ]
+}

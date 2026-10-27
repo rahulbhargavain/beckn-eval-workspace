@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://packs.beckn-eval.invalid/schemas/EnergyTerms/v0.1/schema.json",
+  "title": "EnergyTerms",
+  "description": "Delivery window and quantity terms for an energy offer. Placeholder for DEG EnergyTradeOffer.",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type"
+  ],
+  "properties": {
+    "@context": {
+      "type": "string"
+    },
+    "@type": {
+      "type": "string"
+    },
+    "unitCode": {
+      "type": "string"
+    },
+    "deliveryWindow": {
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "minQuantityKwh": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

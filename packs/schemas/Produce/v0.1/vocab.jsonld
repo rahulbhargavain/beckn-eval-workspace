@@ -1,0 +1,15 @@
+{
+  "@context": {
+    "bk": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "schema": "https://schema.org/"
+  },
+  "@graph": [
+    {
+      "@id": "bk:Produce",
+      "@type": "rdfs:Class",
+      "rdfs:subClassOf": "schema:Product"
+    }
+  ]
+}

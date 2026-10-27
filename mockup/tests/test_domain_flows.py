@@ -8,27 +8,29 @@ import pytest
 
 from beckn_mock import packs as P
 from beckn_mock.catalogstore import CatalogStore
+from beckn_mock.policy import Policy
 from beckn_mock.network import MockNetwork
 import payloads as PL
 
 REPO = Path(__file__).resolve().parents[2]
 PACKS_DIR = REPO / "packs"
 REGISTRY = P.PackRegistry.from_dir(PACKS_DIR)
-DOMAINS = sorted(p.parent.name for p in PACKS_DIR.glob("*/catalog.json"))
+POLICY = Policy.from_file(PACKS_DIR / "policies" / "eval-default.json")
+DOMAINS = sorted(p.stem for p in (PACKS_DIR / "catalogs").glob("*.json"))
 
 
 @pytest.fixture
 def domain_net():
-    store = CatalogStore(REGISTRY)
+    store = CatalogStore(REGISTRY, POLICY)
     for d in DOMAINS:
-        store.publish(json.loads((PACKS_DIR / d / "catalog.json").read_text(encoding="utf-8")))
+        store.publish(json.loads((PACKS_DIR / "catalogs" / f"{d}.json").read_text(encoding="utf-8")))
     with MockNetwork(store=store) as n:
         yield n
         assert n.bpp.errors == [], n.bpp.errors
 
 
 def _first_offer_price(domain):
-    cat = json.loads((PACKS_DIR / domain / "catalog.json").read_text(encoding="utf-8"))
+    cat = json.loads((PACKS_DIR / "catalogs" / f"{domain}.json").read_text(encoding="utf-8"))
     return cat, cat["offers"][0]["considerations"][0]["considerationAttributes"]["value"]
 
 
@@ -36,7 +38,7 @@ def test_discover_without_text_returns_every_domain(domain_net):
     r = domain_net.bap.send("discover", {"intent": {}}, transaction_id=str(uuid.uuid4()))
     cb = domain_net.bap.wait_callback(r.message_id)
     ids = {c["id"] for c in cb["message"]["catalogs"]}
-    want = {json.loads((PACKS_DIR / d / "catalog.json").read_text(encoding="utf-8"))["id"] for d in DOMAINS}
+    want = {json.loads((PACKS_DIR / "catalogs" / f"{d}.json").read_text(encoding="utf-8"))["id"] for d in DOMAINS}
     assert ids == want
 
 
@@ -79,8 +81,8 @@ def test_full_purchase_for_each_domain(domain_net, domain):
 
 def test_client_cannot_substitute_an_offer_from_another_domain_price(domain_net):
     """Quote is recomputed from the catalog: a resource not in the named offer is refused."""
-    agri, _ = _first_offer_price("agri-produce")
-    energy, _ = _first_offer_price("energy-der")
+    agri, _ = _first_offer_price("agri")
+    energy, _ = _first_offer_price("energy")
     bad = [{"id": "c1", "status": {"descriptor": {"code": "DRAFT"}},
             "resources": [{"id": energy["resources"][0]["id"], "quantity": {"unitQuantity": 1, "unitCode": "UNIT"}}],
             "offer": {"id": agri["offers"][0]["id"], "resourceIds": [energy["resources"][0]["id"]]}}]

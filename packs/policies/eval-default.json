@@ -1,0 +1,85 @@
+{
+  "name": "eval-default",
+  "rules": [
+    {
+      "type": "Produce",
+      "require": [
+        "originCountry"
+      ]
+    },
+    {
+      "type": "ProduceTerms",
+      "require": [
+        "unitCode"
+      ],
+      "vocabulary": {
+        "unitCode": [
+          "KGM",
+          "TNE",
+          "C62",
+          "LTR"
+        ]
+      }
+    },
+    {
+      "type": "EnergySource",
+      "require": [
+        "sourceType",
+        "capacityKw",
+        "meterId"
+      ],
+      "vocabulary": {
+        "sourceType": [
+          "SOLAR_PV",
+          "WIND",
+          "HYDRO",
+          "BIOGAS",
+          "CHP",
+          "FUEL_CELL",
+          "BATTERY"
+        ]
+      }
+    },
+    {
+      "type": "EnergyTerms",
+      "require": [
+        "unitCode",
+        "deliveryWindow"
+      ],
+      "vocabulary": {
+        "unitCode": [
+          "KWH"
+        ]
+      }
+    },
+    {
+      "type": "Listing",
+      "require": [
+        "category",
+        "countryCode",
+        "capacity"
+      ],
+      "vocabulary": {
+        "category": [
+          "stay",
+          "tour",
+          "experience",
+          "transport"
+        ]
+      }
+    },
+    {
+      "type": "ListingTerms",
+      "require": [
+        "unitCode"
+      ],
+      "vocabulary": {
+        "unitCode": [
+          "C62",
+          "DAY",
+          "HUR"
+        ]
+      }
+    }
+  ]
+}

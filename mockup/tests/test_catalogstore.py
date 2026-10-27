@@ -8,11 +8,13 @@ import pytest
 
 from beckn_mock import packs as P
 from beckn_mock.catalogstore import CatalogStore, CatalogRejected
+from beckn_mock.policy import Policy
 
 REPO = Path(__file__).resolve().parents[2]
 PACKS_DIR = REPO / "packs"
 REGISTRY = P.PackRegistry.from_dir(PACKS_DIR)
-SAMPLES = sorted(PACKS_DIR.glob("*/catalog.json"))
+POLICY = Policy.from_file(PACKS_DIR / "policies" / "eval-default.json")
+SAMPLES = sorted((PACKS_DIR / "catalogs").glob("*.json"))
 
 
 def _load(path):
@@ -20,19 +22,19 @@ def _load(path):
 
 
 def test_each_pack_ships_a_sample_catalog():
-    assert {p.parent.name for p in SAMPLES} >= {"agri-produce", "energy-der", "tourism-listing"}
+    assert {p.stem for p in SAMPLES} >= {"agri", "energy", "tourism"}
 
 
-@pytest.mark.parametrize("path", SAMPLES, ids=lambda p: p.parent.name)
+@pytest.mark.parametrize("path", SAMPLES, ids=lambda p: p.stem)
 def test_sample_catalogs_publish_cleanly(path):
-    store = CatalogStore(REGISTRY)
+    store = CatalogStore(REGISTRY, POLICY)
     rec = store.publish(_load(path))
     assert rec["version"] == 1
     assert store.get(rec["id"])["id"] == rec["id"]
 
 
 def test_publish_rejects_a_schema_invalid_catalog_and_leaves_store_unchanged():
-    store = CatalogStore(REGISTRY)
+    store = CatalogStore(REGISTRY, POLICY)
     bad = _load(SAMPLES[0])
     del bad["provider"]
     with pytest.raises(CatalogRejected) as e:
@@ -42,8 +44,8 @@ def test_publish_rejects_a_schema_invalid_catalog_and_leaves_store_unchanged():
 
 
 def test_publish_rejects_bad_domain_attributes_with_a_path():
-    store = CatalogStore(REGISTRY)
-    cat = _load(PACKS_DIR / "energy-der" / "catalog.json")
+    store = CatalogStore(REGISTRY, POLICY)
+    cat = _load(PACKS_DIR / "catalogs" / "energy.json")
     cat["resources"][0]["resourceAttributes"]["capacityKw"] = -5
     with pytest.raises(CatalogRejected) as e:
         store.publish(cat)
@@ -51,33 +53,33 @@ def test_publish_rejects_bad_domain_attributes_with_a_path():
 
 
 def test_publish_rejects_offer_that_references_a_missing_resource():
-    store = CatalogStore(REGISTRY)
-    cat = _load(PACKS_DIR / "agri-produce" / "catalog.json")
+    store = CatalogStore(REGISTRY, POLICY)
+    cat = _load(PACKS_DIR / "catalogs" / "agri.json")
     cat["offers"][0]["resourceIds"] = ["no-such-resource"]
     with pytest.raises(CatalogRejected):
         store.publish(cat)
 
 
 def test_publish_rejects_offer_without_a_usable_price():
-    store = CatalogStore(REGISTRY)
-    cat = _load(PACKS_DIR / "agri-produce" / "catalog.json")
+    store = CatalogStore(REGISTRY, POLICY)
+    cat = _load(PACKS_DIR / "catalogs" / "agri.json")
     cat["offers"][0]["considerations"][0]["considerationAttributes"]["value"] = "free"
     with pytest.raises(CatalogRejected):
         store.publish(cat)
 
 
 def test_offer_and_resource_ids_must_be_unique_store_wide():
-    store = CatalogStore(REGISTRY)
-    store.publish(_load(PACKS_DIR / "agri-produce" / "catalog.json"))
-    clash = _load(PACKS_DIR / "energy-der" / "catalog.json")
-    clash["offers"][0]["id"] = _load(PACKS_DIR / "agri-produce" / "catalog.json")["offers"][0]["id"]
+    store = CatalogStore(REGISTRY, POLICY)
+    store.publish(_load(PACKS_DIR / "catalogs" / "agri.json"))
+    clash = _load(PACKS_DIR / "catalogs" / "energy.json")
+    clash["offers"][0]["id"] = _load(PACKS_DIR / "catalogs" / "agri.json")["offers"][0]["id"]
     with pytest.raises(CatalogRejected):
         store.publish(clash)
 
 
 def test_republishing_bumps_the_version_and_keeps_history():
-    store = CatalogStore(REGISTRY)
-    cat = _load(PACKS_DIR / "agri-produce" / "catalog.json")
+    store = CatalogStore(REGISTRY, POLICY)
+    cat = _load(PACKS_DIR / "catalogs" / "agri.json")
     store.publish(cat)
     cat2 = copy.deepcopy(cat)
     cat2["offers"][0]["considerations"][0]["considerationAttributes"]["value"] += 1
@@ -88,15 +90,15 @@ def test_republishing_bumps_the_version_and_keeps_history():
 
 
 def test_republishing_identical_content_is_idempotent():
-    store = CatalogStore(REGISTRY)
-    cat = _load(PACKS_DIR / "tourism-listing" / "catalog.json")
+    store = CatalogStore(REGISTRY, POLICY)
+    cat = _load(PACKS_DIR / "catalogs" / "tourism.json")
     store.publish(cat)
     assert store.publish(copy.deepcopy(cat))["version"] == 1
 
 
 def test_deactivated_catalogs_are_not_discoverable_but_remain_in_history():
-    store = CatalogStore(REGISTRY)
-    cat = _load(PACKS_DIR / "tourism-listing" / "catalog.json")
+    store = CatalogStore(REGISTRY, POLICY)
+    cat = _load(PACKS_DIR / "catalogs" / "tourism.json")
     store.publish(cat)
     store.deactivate(cat["id"])
     assert store.active() == []
@@ -104,21 +106,21 @@ def test_deactivated_catalogs_are_not_discoverable_but_remain_in_history():
 
 
 def test_discovery_spans_catalogs_and_filters_by_text():
-    store = CatalogStore(REGISTRY)
+    store = CatalogStore(REGISTRY, POLICY)
     for p in SAMPLES:
         store.publish(_load(p))
     assert len(store.active()) == len(SAMPLES)
     every = store.search(None)
     assert len(every) == len(SAMPLES)
     hits = store.search("solar")
-    assert len(hits) == 1 and hits[0]["id"] == _load(PACKS_DIR / "energy-der" / "catalog.json")["id"]
+    assert len(hits) == 1 and hits[0]["id"] == _load(PACKS_DIR / "catalogs" / "energy.json")["id"]
     for r in hits[0]["resources"]:
         assert "solar" in json.dumps(r).lower()
     assert store.search("zzz-no-such-thing") == []
 
 
 def test_search_never_returns_the_stored_object_itself():
-    store = CatalogStore(REGISTRY)
+    store = CatalogStore(REGISTRY, POLICY)
     store.publish(_load(SAMPLES[0]))
     out = store.search(None)
     out[0]["resources"].clear()
@@ -127,12 +129,12 @@ def test_search_never_returns_the_stored_object_itself():
 
 def test_load_dir_publishes_every_json_file(tmp_path):
     for p in SAMPLES:
-        (tmp_path / f"{p.parent.name}.json").write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
-    store = CatalogStore.from_dir(tmp_path, REGISTRY)
+        (tmp_path / p.name).write_text(p.read_text(encoding="utf-8"), encoding="utf-8")
+    store = CatalogStore.from_dir(tmp_path, REGISTRY, POLICY)
     assert len(store.ids()) == len(SAMPLES)
 
 
 def test_load_dir_fails_loudly_on_an_invalid_file(tmp_path):
     (tmp_path / "x.json").write_text("{}", encoding="utf-8")
     with pytest.raises(CatalogRejected):
-        CatalogStore.from_dir(tmp_path, REGISTRY)
+        CatalogStore.from_dir(tmp_path, REGISTRY, POLICY)

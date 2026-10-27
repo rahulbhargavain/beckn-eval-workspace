@@ -1,0 +1,42 @@
+{
+  "valid": [
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/context.jsonld",
+      "@type": "Listing",
+      "category": "stay",
+      "countryCode": "IN",
+      "capacity": 4
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/context.jsonld",
+      "@type": "Listing",
+      "category": "experience",
+      "countryCode": "IN",
+      "capacity": 8
+    }
+  ],
+  "invalid": [
+    {
+      "layer": "schema",
+      "reason": "capacity must be at least 1",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/context.jsonld",
+        "@type": "Listing",
+        "category": "stay",
+        "countryCode": "IN",
+        "capacity": 0
+      }
+    },
+    {
+      "layer": "policy",
+      "reason": "category outside the controlled vocabulary",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/context.jsonld",
+        "@type": "Listing",
+        "category": "spaceflight",
+        "countryCode": "IN",
+        "capacity": 2
+      }
+    }
+  ]
+}

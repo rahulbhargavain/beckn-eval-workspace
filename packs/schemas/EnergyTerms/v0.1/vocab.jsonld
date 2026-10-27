@@ -1,0 +1,20 @@
+{
+  "@context": {
+    "bk": "https://packs.beckn-eval.invalid/schemas/EnergyTerms/v0.1/",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "schema": "https://schema.org/"
+  },
+  "@graph": [
+    {
+      "@id": "bk:EnergyTerms",
+      "@type": "rdfs:Class",
+      "rdfs:subClassOf": "schema:StructuredValue"
+    },
+    {
+      "@id": "bk:unit/KWH",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:UnitOfMeasure"
+    }
+  ]
+}

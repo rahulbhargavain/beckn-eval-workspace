@@ -1,0 +1,10 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "bk": "https://packs.beckn-eval.invalid/schemas/ListingTerms/v0.1/",
+    "schema": "https://schema.org/",
+    "ListingTerms": "bk:ListingTerms",
+    "unitCode": "bk:unitCode",
+    "cancellationPolicyId": "bk:cancellationPolicyId"
+  }
+}

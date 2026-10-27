@@ -1,0 +1,27 @@
+openapi: 3.1.1
+info:
+  title: ProduceTerms attributes
+  version: 0.1.0
+components:
+  schemas:
+    ProduceTerms:
+      title: ProduceTerms
+      description: Quantity unit and ordering terms for produce, used for arithmetic
+        when quoting.
+      type: object
+      required:
+      - '@context'
+      - '@type'
+      properties:
+        '@context':
+          type: string
+        '@type':
+          type: string
+        unitCode:
+          type: string
+        minOrderQuantity:
+          type: integer
+          minimum: 1
+        deliveryLeadDays:
+          type: integer
+          minimum: 0

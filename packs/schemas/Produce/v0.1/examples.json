@@ -1,0 +1,45 @@
+{
+  "valid": [
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+      "@type": "Produce",
+      "originCountry": "IN",
+      "harvestDate": "2026-10-01"
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+      "@type": "Produce",
+      "originCountry": "IN"
+    }
+  ],
+  "invalid": [
+    {
+      "layer": "schema",
+      "reason": "originCountry not ISO 3166 alpha-2",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+        "@type": "Produce",
+        "originCountry": "India"
+      }
+    },
+    {
+      "layer": "schema",
+      "reason": "harvestDate not a date",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+        "@type": "Produce",
+        "originCountry": "IN",
+        "harvestDate": "last autumn"
+      }
+    },
+    {
+      "layer": "policy",
+      "reason": "originCountry is required by the network",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+        "@type": "Produce",
+        "harvestDate": "2026-10-01"
+      }
+    }
+  ]
+}

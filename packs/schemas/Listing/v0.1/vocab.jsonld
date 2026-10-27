@@ -1,0 +1,35 @@
+{
+  "@context": {
+    "bk": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "skos": "http://www.w3.org/2004/02/skos/core#",
+    "schema": "https://schema.org/"
+  },
+  "@graph": [
+    {
+      "@id": "bk:Listing",
+      "@type": "rdfs:Class",
+      "rdfs:subClassOf": "schema:Product"
+    },
+    {
+      "@id": "bk:category/stay",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:ListingCategory"
+    },
+    {
+      "@id": "bk:category/tour",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:ListingCategory"
+    },
+    {
+      "@id": "bk:category/experience",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:ListingCategory"
+    },
+    {
+      "@id": "bk:category/transport",
+      "@type": "skos:Concept",
+      "skos:broader": "bk:ListingCategory"
+    }
+  ]
+}

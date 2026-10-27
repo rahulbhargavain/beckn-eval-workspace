@@ -1,0 +1,11 @@
+{
+  "@context": {
+    "@version": 1.1,
+    "bk": "https://packs.beckn-eval.invalid/schemas/Listing/v0.1/",
+    "schema": "https://schema.org/",
+    "Listing": "bk:Listing",
+    "category": "bk:category",
+    "countryCode": "bk:countryCode",
+    "capacity": "bk:capacity"
+  }
+}

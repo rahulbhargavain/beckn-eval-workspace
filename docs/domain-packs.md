@@ -1,46 +1,63 @@
-# Domain packs, catalog store and multi-domain BPP
+# Domain packs, policy, catalog store and multi-domain BPP
 
-What this adds (steps 1-3 of the catalog-hosting plan). All of it lives in the mockup; the
-stack-agnostic harness is unchanged.
+Lives in the mockup; the stack-agnostic harness is unchanged. Restructured to follow the schema
+design guide and the beckn-agents schema-builder checklist (see the comparison in the session
+notes: no mandatory fields in schemas, no closed enums, no generic-suffix type names, one
+directory per schema and version).
 
-## 1. Domain schema packs (`packs/`)
-A pack is a directory: `pack.json` (name, version, `@context` URI, `@type` to schema-file map),
-one JSON Schema 2020-12 file per type, `examples.json` (valid and invalid cases) and an optional
-`catalog.json` sample. Adding a domain means adding a directory; no code changes (tested in
-`test_adding_a_domain_needs_only_files_no_code`).
+## Layout (`packs/`)
+```
+schemas/<Type>/<vN.M>/  schema.json  attributes.yaml  context.jsonld  vocab.jsonld  README.md  examples.json
+external/*.json         upstream schemas recognised but not mirrored (validation deferred)
+policies/*.json         network policy: required attributes and controlled vocabularies
+catalogs/*.json         sample catalogs used by the tests
+```
+A schema's `$id` names its own directory and defines its `@context` URL (`.../context.jsonld`).
+Adding a schema or a version is adding a directory; no code changes. Published version
+directories should never be edited in place (not enforced yet).
 
-| Pack | Types | Carries |
+| Type | Carries (structural) | Policy requires / vocabulary |
 |---|---|---|
-| `agri-produce` | `Produce`, `ProduceOffer` | commodity, origin country, harvest date, grade; unit (KGM, TNE, C62, LTR), minimum order, lead days |
-| `energy-der` | `EnergySource`, `EnergyOffer` | source type, capacity kW, meter id; unit KWH, delivery window, minimum kWh |
-| `tourism-listing` | `Listing`, `ListingOffer` | category, location, country, capacity; unit (C62, DAY, HUR), cancellation policy |
-| `pricing-core` | `PriceSpecification` | currency, value (the shape the BPP quotes from) |
+| `Produce` | originCountry, harvestDate, certifications | originCountry |
+| `ProduceTerms` | unitCode, minOrderQuantity, deliveryLeadDays | unitCode in KGM, TNE, C62, LTR |
+| `EnergySource` | sourceType, capacityKw, meterId | all three; sourceType in DEG-style terms plus BATTERY |
+| `EnergyTerms` | unitCode, deliveryWindow, minQuantityKwh | unit KWH; window required |
+| `Listing` | category, countryCode, capacity | all three; category in stay, tour, experience, transport |
+| `ListingTerms` | unitCode, cancellationPolicyId | unit in C62, DAY, HUR |
 
-Attributes are kept thin on purpose (docs/Schema_Design_Guide.md: structured attributes only for
-facts that drive filtering, arithmetic or compliance; the rest belongs in `Descriptor`). The
-contexts live under `packs.beckn-eval.invalid`, a reserved name, so no real domain is claimed.
+Descriptive facts (commodity name, grade, place name) moved to the `Descriptor`. Price is the
+upstream `PriceSpecification` (`external/`), whose structural validation is deferred until a pinned
+local mirror exists; the store still checks currency and a numeric value.
 
-**UNVERIFIED:** none of these packs has been checked against upstream `beckn/schemas` or
-`beckn/DEG`; upstream may already define energy and other types. The agri licence/regulatory
-fields, energy settlement terms and tourism taxes are not modelled. Treat the packs as scaffolding
-to replace or align once upstream schemas are known.
+**UNVERIFIED:** the packs are workspace-owned scaffolding, not upstream Beckn schemas. The
+`EnergySource` and `EnergyTerms` types are placeholders for DEG's `EnergyResource*` and
+`EnergyTradeOffer`. The external `PriceSpecification` context URL follows the
+`schema.nfh.global/<Name>/<ver>/context.jsonld` pattern and was not resolved. `vocab.jsonld`
+mappings are provisional, and the type names are provisional (the guide discourages generic
+suffixes; `...Terms` is a stand-in). Contexts use the reserved `.invalid` domain.
 
-## 2. Catalog store (`mockup/beckn_mock/catalogstore.py`)
-- `publish` validates against the Beckn `Catalog` schema, then every `*Attributes` container
-  against the packs, then checks references and prices; failure leaves the store unchanged.
+## Policy (`mockup/beckn_mock/policy.py`)
+A small stand-in for the Rego policy-as-code the guide mentions. Rules are keyed by `@type`:
+`require` (field names) and `vocabulary` (field to allowed values). Different networks can ship
+different policies over the same schemas; a store without a policy accepts what the schemas allow.
+
+## Catalog store (`catalogstore.py`)
+- `publish` validates the Beckn `Catalog` schema, then every `*Attributes` container against the
+  packs and the policy, then references and prices; failure leaves the store unchanged.
 - Offer and resource ids are unique store-wide; an offer must have a numeric price.
-- Every changed publish creates a new version; identical content is a no-op; `history` and
-  `get(version=)` read old versions; `deactivate` hides a catalog from discovery.
-- In-memory only. File persistence beyond `from_dir` loading is not built.
+- Every changed publish creates a new version; identical content is a no-op.
+- In-memory only.
 
-## 3. BPP wiring
-`BppNode` takes a `store`. `discover` searches all active catalogs, `select/init/confirm`
-recompute price from the store (never from client input) and return the offer's `unitCode`.
-The legacy single-catalog path still works (non-strict packs).
+## BPP
+`BppNode` takes a `store`. `discover` searches all active catalogs; `select/init/confirm` recompute
+price from the store and return the offer's `unitCode`. The legacy single-catalog path still works.
 
 ## Known limits
-- Only the `Intent.textSearch` filter is implemented; `filters` and `spatial` are ignored.
-- Delivery-window ordering (end after start) is not expressible in the schema and is unchecked.
-- Strict context checking applies to packs only; the BPP still assumes the price lives in
-  `considerations[0]`.
-- No inventory, availability or quantity limits per offer.
+- Only `Intent.textSearch` discovery is implemented.
+- Delivery-window ordering is unchecked.
+- The price is assumed to live in `considerations[0]`.
+- No inventory or availability.
+- Policy rules match on `@type` only, not on context.
+- Not mirrored: the real upstream schemas. Aligning with DEG and `beckn/schemas` needs a pinned
+  local mirror (the upstream files are OpenAPI 3.1 YAML with `$ref`s to `schema.nfh.global`), and
+  the upstream repos are CC BY-NC-SA 4.0, so reference rather than copy.

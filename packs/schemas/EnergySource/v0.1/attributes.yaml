@@ -1,0 +1,27 @@
+openapi: 3.1.1
+info:
+  title: EnergySource attributes
+  version: 0.1.0
+components:
+  schemas:
+    EnergySource:
+      title: EnergySource
+      description: 'A distributed energy source for trade. Placeholder: replace with
+        the DEG EnergyResource schemas once mirrored.'
+      type: object
+      required:
+      - '@context'
+      - '@type'
+      properties:
+        '@context':
+          type: string
+        '@type':
+          type: string
+        sourceType:
+          type: string
+        capacityKw:
+          type: number
+          exclusiveMinimum: 0
+        meterId:
+          type: string
+          minLength: 1

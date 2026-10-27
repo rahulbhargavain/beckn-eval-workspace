@@ -1,0 +1,24 @@
+openapi: 3.1.1
+info:
+  title: ListingTerms attributes
+  version: 0.1.0
+components:
+  schemas:
+    ListingTerms:
+      title: ListingTerms
+      description: Pricing unit for a tourism offer, with a reference to an upstream
+        CancellationPolicy by id.
+      type: object
+      required:
+      - '@context'
+      - '@type'
+      properties:
+        '@context':
+          type: string
+        '@type':
+          type: string
+        unitCode:
+          type: string
+        cancellationPolicyId:
+          type: string
+          minLength: 1

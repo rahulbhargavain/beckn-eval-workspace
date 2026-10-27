@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://packs.beckn-eval.invalid/schemas/ListingTerms/v0.1/schema.json",
+  "title": "ListingTerms",
+  "description": "Pricing unit for a tourism offer, with a reference to an upstream CancellationPolicy by id.",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type"
+  ],
+  "properties": {
+    "@context": {
+      "type": "string"
+    },
+    "@type": {
+      "type": "string"
+    },
+    "unitCode": {
+      "type": "string"
+    },
+    "cancellationPolicyId": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
