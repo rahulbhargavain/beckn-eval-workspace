@@ -1,0 +1,58 @@
+{
+  "dedi_version": "0.1",
+  "type": "dedi-manifest",
+  "domain": "example.org",
+  "name": "Example Org Trust Services",
+  "description": "Trust registries of Example Org",
+  "keys": [
+    { "kid": "key-1", "kty": "OKP", "crv": "Ed25519", "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" }
+  ],
+  "updated_at": "2026-07-01T09:00:00Z",
+  "next_update": "2026-07-15T10:00:00Z",
+  "digests": "https://example.org/dedi/dedi.digests.json",
+  "files": [
+    {
+      "registry": "public-keys",
+      "url": "https://example.org/dedi/dedi.public-keys.json",
+      "schema": "https://raw.githubusercontent.com/LF-Decentralized-Trust-labs/decentralized-directory-protocol/main/schemas/Public_key.json"
+    },
+    {
+      "registry": "revocations",
+      "url": "https://example.org/dedi/dedi.revocations.json",
+      "schema": "https://raw.githubusercontent.com/LF-Decentralized-Trust-labs/decentralized-directory-protocol/main/schemas/Revoke.json"
+    },
+    {
+      "dedi_version": "0.1",
+      "type": "dedi-file",
+      "source_url": "https://example.org/.well-known/dedi.index.json",
+      "next_update": "2026-07-15T10:00:00Z",
+      "publisher": {
+        "domain": "example.org",
+        "key": { "kid": "key-1", "kty": "OKP", "crv": "Ed25519", "x": "11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo" }
+      },
+      "namespace": "example.org",
+      "registry": {
+        "name": "trust-anchors",
+        "schema": { "type": "object", "required": ["anchor_id", "url"], "properties": { "anchor_id": { "type": "string" }, "url": { "type": "string" } } },
+        "state": "live",
+        "updated_at": "2026-07-01T09:00:00Z"
+      },
+      "records": [
+        {
+          "record_name": "lfdt-root",
+          "details": { "anchor_id": "example.org:lfdt-root", "url": "https://example.org/anchors/lfdt-root" }
+        }
+      ],
+      "proof": {
+        "verification_method": "key-1",
+        "canonicalization": "JCS",
+        "jws": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..ILLUSTRATIVE_DETACHED_SIGNATURE_NOT_CRYPTOGRAPHICALLY_VALID"
+      }
+    }
+  ],
+  "proof": {
+    "verification_method": "key-1",
+    "canonicalization": "JCS",
+    "jws": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..ILLUSTRATIVE_DETACHED_SIGNATURE_NOT_CRYPTOGRAPHICALLY_VALID"
+  }
+}

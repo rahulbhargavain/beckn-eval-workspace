@@ -1,2 +1,4 @@
 # Only needed for signed scenarios (auth: beckn-http-signature)
 PyNaCl==1.6.2
+# DeDi file shape checks (conformance/dedi.py)
+jsonschema[format-nongpl]==4.26.0

@@ -29,3 +29,5 @@ Open Commerce / ONDC profile (Beckn-based, India), Shopify/UCP-style or ACP agen
 ## Domain packs (added 2026-10-27)
 - `packs/` holds workspace-owned, experimental schemas (Produce, EnergySource, Listing and their *Terms types), laid out one dir per schema/version, with mandatory fields and vocabularies in `packs/policies/`; contexts under `packs.beckn-eval.invalid`. UNVERIFIED against upstream beckn/schemas and beckn/DEG (energy placeholders to be replaced by DEG). See docs/domain-packs.md.
 - BPP serves a multi-catalog `CatalogStore` (mockup/beckn_mock/catalogstore.py); only `textSearch` discovery is implemented.
+
+- DeDi onboarding generator/validator: conformance/dedi.py (docs/dedi-onboarding.md). Signing follows the spec text but is not cross-checked against another implementation; upstream example signatures are placeholders.
