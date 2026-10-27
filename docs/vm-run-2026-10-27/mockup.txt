@@ -1,0 +1,8 @@
+E         
+E         - CERTIFIED
+E         + INCOMPLETE
+
+tests/test_conformance_runner.py:41: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_conformance_runner.py::test_mockup_is_certified_and_admitted[bpp-core]
+1 failed, 78 passed, 9 xfailed in 56.09s

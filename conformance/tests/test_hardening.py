@@ -412,3 +412,23 @@ def test_repo_profiles_are_pinned_and_current():
         assert prof["role"] == role and prof["spec"] == "beckn-2.0.0"
         assert prof["required"] == runner.pin_profile(prof, scs, runner.DEFAULT_FIXTURES)["required"]
         assert len(prof["required"]) >= 3
+
+
+def test_scenario_hash_ignores_line_endings_in_fixtures(tmp_path):
+    """A Windows (CRLF) and a Linux (LF) checkout of the same fixture must pin identically."""
+    s = {"id": "X", "level": "mandatory", "roles": ["BPP"], "spec": "t",
+         "request": {"method": "POST", "path": "/x", "body": "f.json"}, "expect": {"status": 200}}
+    lf, crlf = tmp_path / "lf", tmp_path / "crlf"
+    for d, nl in ((lf, b"\n"), (crlf, b"\r\n")):
+        d.mkdir()
+        (d / "f.json").write_bytes(b'{"a": 1,' + nl + b' "b": 2}' + nl)
+    assert runner.scenario_hash(s, lf) == runner.scenario_hash(s, crlf)
+
+
+def test_scenario_hash_still_changes_when_fixture_content_changes(tmp_path):
+    s = {"id": "X", "level": "mandatory", "roles": ["BPP"], "spec": "t",
+         "request": {"method": "POST", "path": "/x", "body": "f.json"}, "expect": {"status": 200}}
+    (tmp_path / "f.json").write_text('{"a": 1}\n')
+    h1 = runner.scenario_hash(s, tmp_path)
+    (tmp_path / "f.json").write_text('{"a": 2}\n')
+    assert runner.scenario_hash(s, tmp_path) != h1

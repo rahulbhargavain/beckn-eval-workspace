@@ -212,7 +212,8 @@ def scenario_hash(s, fixtures_root):
     body = s["request"].get("body")
     if isinstance(body, str):
         try:
-            h.update(b"\0" + _fixture_path(fixtures_root, body).read_bytes())
+            raw = _fixture_path(fixtures_root, body).read_bytes()
+            h.update(b"\0" + raw.replace(b"\r\n", b"\n"))  # same pin on CRLF (Windows) and LF checkouts
         except (OSError, ValueError):
             h.update(b"\0unreadable")
     return h.hexdigest()
