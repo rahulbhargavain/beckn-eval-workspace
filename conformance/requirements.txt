@@ -1,0 +1,2 @@
+# Only needed for signed scenarios (auth: beckn-http-signature)
+PyNaCl==1.6.2

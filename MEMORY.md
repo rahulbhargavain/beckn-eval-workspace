@@ -23,5 +23,5 @@ Open Commerce / ONDC profile (Beckn-based, India), Shopify/UCP-style or ACP agen
 ## Open questions
 - Which stack(s) does the user want evaluated?
 - Local-only evaluation, or against a public sandbox/registry? (Spec hard-codes `fabric.nfh.global` for implicit keyIds; local testing needs a registry override.)
-- How should the harness sign requests? `scripts/test.ps1` sends unsigned requests, so against a conformant adapter scenario 001 will get 401 until the runner signs.
+- Harness signing is done (`conformance/signing.py`); a real network still needs the harness identity registered, and a local registry override for `fabric.nfh.global`.
 - Spec contradictions to raise upstream or pin a stance on (callback replay rules, digest prefix, Context required fields): see docs/mockup-findings.md.

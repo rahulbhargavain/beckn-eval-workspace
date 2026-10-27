@@ -11,9 +11,14 @@ import json
 import re
 import time
 import urllib.error
+import uuid
 import urllib.request
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_SCENARIOS = ROOT / "tests" / "scenarios"
+DEFAULT_FIXTURES = ROOT / "tests"
+SIGNED = "beckn-http-signature"
 MISSING = object()
 MAX_AGE_SECONDS = 90 * 24 * 3600
 
@@ -38,10 +43,26 @@ def load_scenarios(directory):
     return out
 
 
-def _call(base_url, req, timeout):
+def _body(req, fixtures_root, identity):
     body = req.get("body")
-    data = json.dumps(body).encode() if body is not None else None
+    if isinstance(body, str):  # path relative to the fixtures root
+        body = json.loads((Path(fixtures_root) / body).read_text(encoding="utf-8"))
+    if body is not None and req.get("auth") == SIGNED:
+        ctx = body.setdefault("context", {})
+        ctx.update(bapId=identity["bap_id"], bapUri=identity["bap_uri"],
+                   networkId=identity["network_id"], messageId=str(uuid.uuid4()))
+    return None if body is None else json.dumps(body, separators=(",", ":")).encode()
+
+
+def _call(base_url, req, timeout, fixtures_root, identity):
+    signed = req.get("auth") == SIGNED
+    if signed and not identity:
+        raise ValueError("scenario needs a signing identity (none supplied)")
+    data = _body(req, fixtures_root, identity)
     headers = {"Content-Type": "application/json", **req.get("headers", {})}
+    if signed:
+        from . import signing
+        headers["Authorization"] = signing.authorization(identity, data)
     r = urllib.request.Request(base_url + req["path"], data=data, headers=headers,
                                method=req.get("method", "POST"))
     try:
@@ -51,10 +72,10 @@ def _call(base_url, req, timeout):
         return e.code, e.read()
 
 
-def _check(s, base_url, timeout):
+def _check(s, base_url, timeout, fixtures_root, identity):
     try:
-        status, raw = _call(base_url, s["request"], timeout)
-    except Exception as e:  # unreachable, timeout, TLS failure...
+        status, raw = _call(base_url, s["request"], timeout, fixtures_root, identity)
+    except Exception as e:  # unreachable, timeout, TLS failure, missing identity...
         return False, f"request error: {e}"
     exp = s["expect"]
     if status != exp["status"]:
@@ -76,7 +97,8 @@ def digest(report):
     return hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def run(scenarios, profile, base_url, participant, timeout=10, now=None):
+def run(scenarios, profile, base_url, participant, timeout=10, now=None,
+        fixtures_root=DEFAULT_FIXTURES, identity=None):
     applicable = [s for s in scenarios if profile["role"] in s.get("roles", [profile["role"]])]
     results, warnings = [], []
     mand_fail = mand_pending = False
@@ -86,7 +108,7 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None):
             results.append({"id": s["id"], "level": s.get("level", "mandatory"), "outcome": "pending"})
             mand_pending |= mandatory
             continue
-        ok, why = _check(s, base_url, timeout)
+        ok, why = _check(s, base_url, timeout, fixtures_root, identity)
         results.append({"id": s["id"], "level": s.get("level", "mandatory"),
                         "outcome": "pass" if ok else "fail", "detail": why})
         if not ok:
@@ -125,10 +147,12 @@ if __name__ == "__main__":
     ap.add_argument("--base-url", required=True)
     ap.add_argument("--profile", required=True, help="path to profile JSON")
     ap.add_argument("--participant", required=True)
-    ap.add_argument("--scenarios", default=str(Path(__file__).parent.parent / "tests" / "scenarios"))
+    ap.add_argument("--scenarios", default=str(DEFAULT_SCENARIOS))
+    ap.add_argument("--identity", help="JSON file: key_id, private_key_seed_b64, bap_id, bap_uri, network_id")
     ap.add_argument("--out")
     a = ap.parse_args()
-    rep = run(load_scenarios(a.scenarios), json.loads(Path(a.profile).read_text()), a.base_url, a.participant)
+    rep = run(load_scenarios(a.scenarios), json.loads(Path(a.profile).read_text()), a.base_url, a.participant,
+              identity=json.loads(Path(a.identity).read_text()) if a.identity else None)
     text = json.dumps(rep, indent=2)
     Path(a.out).write_text(text) if a.out else print(text)
     raise SystemExit(0 if rep["verdict"] == "CERTIFIED" else 1)
