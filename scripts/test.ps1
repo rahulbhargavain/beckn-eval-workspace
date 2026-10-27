@@ -11,7 +11,7 @@ if (-not (Test-Path $py)) { $py = "python" }
 $runnerArgs = @("-m", "conformance.runner", "--base-url", $BaseUrl, "--profile", $Profile, "--participant", $Participant)
 if ($Identity) { $runnerArgs += @("--identity", $Identity) }
 Push-Location $root
-& $py @args $py @runnerArgs
+& $py @runnerArgs
 $code = $LASTEXITCODE
 Pop-Location
 exit $code
