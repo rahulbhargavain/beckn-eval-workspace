@@ -8,10 +8,10 @@ param(
 $root = Split-Path $PSScriptRoot -Parent
 $py = Join-Path $root "mockup/.venv/Scripts/python.exe"
 if (-not (Test-Path $py)) { $py = "python" }
-$args = @("-m", "conformance.runner", "--base-url", $BaseUrl, "--profile", $Profile, "--participant", $Participant)
-if ($Identity) { $args += @("--identity", $Identity) }
+$runnerArgs = @("-m", "conformance.runner", "--base-url", $BaseUrl, "--profile", $Profile, "--participant", $Participant)
+if ($Identity) { $runnerArgs += @("--identity", $Identity) }
 Push-Location $root
-& $py @args
+& $py @args $py @runnerArgs
 $code = $LASTEXITCODE
 Pop-Location
 exit $code
