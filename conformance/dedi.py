@@ -61,7 +61,7 @@ def _jcs(o, out):
     elif isinstance(o, int):
         if abs(o) > 2 ** 53 - 1:
             raise DediError("integer outside the interoperable JSON range")
-        out.append(str(o))
+        out.append(str(int(o)))
     elif isinstance(o, float):
         raise DediError("floats are not supported by this canonicalizer")
     elif isinstance(o, (list, tuple)):
@@ -169,7 +169,10 @@ def _ts(dt):
 
 
 def _parse_ts(s):
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        raise ValueError("timestamp lacks a timezone")  # comparing naive and aware datetimes would raise TypeError
+    return dt
 
 
 def _check_config(cfg):
@@ -306,7 +309,15 @@ def verify_bytes(manifest_raw, files, domain, now):
     if signer is None or not signature_ok(manifest, signer):
         bad("MANIFEST", "not signed by one of its own listed keys")
         rep.authenticated = False
-    if _parse_ts(manifest["next_update"]) < now:
+    def stale(ts, label):
+        try:
+            return _parse_ts(ts) < now
+        except ValueError:
+            bad("SHAPE", f"{label}: next_update is not a timezone-aware timestamp")
+            rep.authenticated = False
+            return False
+
+    if stale(manifest["next_update"], "manifest"):
         bad("STALE", "manifest is past next_update")
     names = [f.get("registry") for f in manifest["files"] if "registry" in f and "dedi_version" not in f]
     if len(names) != len(set(names)):
@@ -346,7 +357,7 @@ def verify_bytes(manifest_raw, files, domain, now):
         if doc["publisher"]["domain"] != domain or not any(_same_key(key, k) for k in manifest["keys"]):
             bad("NOT_AUTHENTICATED", f"{label}: publisher key is not listed by {domain}'s manifest")
             rep.authenticated = False
-        if _parse_ts(doc["next_update"]) < now:
+        if stale(doc["next_update"], label):
             bad("STALE", f"{label}: file is past next_update")
         if doc["registry"]["state"] != "live":
             bad("INACTIVE", f"{label}: registry state is {doc['registry']['state']}")

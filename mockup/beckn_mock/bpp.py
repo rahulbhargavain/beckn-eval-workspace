@@ -18,7 +18,7 @@ from fastapi import Request
 from . import signing, spec, urlguard
 from .catalogstore import CatalogStore
 from .packs import PackRegistry
-from .node import (Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, same_url)
+from .node import (Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, read_body, same_url)
 
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.json")
 _CTX = "https://schema.example.org/mock/v1"
@@ -51,11 +51,11 @@ class BppNode(Node):
     # ------------------------------------------------------------------ inbound
     def _endpoint(self, action):
         async def handler(request: Request):
-            raw = await request.body()
             auth = request.headers.get("authorization")
             req_sig = raw_signature(auth)
             mid = None
             try:
+                raw = await read_body(request)
                 v = await self.verify_signature(raw, auth, {signing.STD_HEADERS})
                 body = self.parse_body(raw)
                 ctx = self.validate("/" + action, body, "bapId")
@@ -217,7 +217,11 @@ class BppNode(Node):
             for r in cm["resources"]:
                 if r["id"] not in offer["resourceIds"]:
                     raise self._bad(ctx, "BIZ_ITEM_NOT_FOUND", f"resource {r['id']} not in offer")
-                q = self._qty(ctx, r.get("quantity", {}).get("unitQuantity", 1) if isinstance(r.get("quantity"), dict) else 1)
+                qd = r.get("quantity", {})
+                if not isinstance(qd, dict):
+                    raise self._bad(ctx, "SCH_SCHEMA_VALIDATION_FAILED",
+                                    "resource quantity must be an object such as {\"unitQuantity\": 2}")
+                q = self._qty(ctx, qd.get("unitQuantity", 1))
                 price = self._price(offer)
                 value = price["value"]
                 total += (Decimal(value) if isinstance(value, int) else Decimal(repr(value))) * q
@@ -321,6 +325,7 @@ class BppNode(Node):
         c = self._owned(ctx, msg["contract"]["id"])
         if c["status"]["code"] != "ACTIVE":
             raise self._bad(ctx, "BIZ_INVALID_STATE_TRANSITION", "only ACTIVE contracts can be updated")
+        self._quote(ctx, msg["contract"]["commitments"])  # same quantity rules on preview and commit
 
         def preview():
             commitments, consideration = self._quote(ctx, msg["contract"]["commitments"])

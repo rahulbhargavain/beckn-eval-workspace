@@ -7,6 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import FastAPI
@@ -72,6 +73,23 @@ def parse_duration(value):
                      minutes=int(mi or 0), seconds=float(s or 0))
 
 
+MAX_BODY_BYTES = 1_048_576  # request bodies are capped before any hashing or parsing
+_KEY_SEG = re.compile(r"^[A-Za-z0-9._:@-]+$")
+
+
+async def read_body(request) -> bytes:
+    """Read a request body, refusing more than MAX_BODY_BYTES (pre-authentication, so keep it cheap)."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+        raise Reject(400, "SCH_INVALID_JSON", f"body larger than {MAX_BODY_BYTES} bytes")
+    buf = bytearray()
+    async for chunk in request.stream():
+        buf += chunk
+        if len(buf) > MAX_BODY_BYTES:
+            raise Reject(400, "SCH_INVALID_JSON", f"body larger than {MAX_BODY_BYTES} bytes")
+    return bytes(buf)
+
+
 class Node:
     """Base for BAP/BPP. `trusted_registries` are URL prefixes for explicit keyIds."""
 
@@ -114,9 +132,15 @@ class Node:
             # is attacker-supplied and fetched before the request is authenticated.
             if not any(base.startswith(t) for t in self.trusted_registries):
                 raise Reject(401, "AUT_KEY_NOT_FOUND", "explicit keyId registry not trusted")
+            parts = urlsplit(base)
+            segs = parts.path.split("/")[1:]
+            if (parts.query or parts.fragment or "@" in parts.netloc or "\\" in base or "%" in parts.path
+                    or any(s in ("", ".", "..") for s in segs)):
+                raise Reject(401, "AUT_SIGNATURE_INVALID", "explicit keyId URL has an unsafe path, query or fragment")
             return base
-        if base.count("/") != 2 or any(not p for p in base.split("/")):
-            raise Reject(401, "AUT_SIGNATURE_INVALID", "implicit keyId must be ns/registry/record")
+        parts = base.split("/")
+        if len(parts) != 3 or not all(_KEY_SEG.match(p) and p not in (".", "..") for p in parts):
+            raise Reject(401, "AUT_SIGNATURE_INVALID", "implicit keyId must be ns/registry/record of [A-Za-z0-9._:@-]")
         return f"{self.registry_url}/dedi/lookup/{key_id}"
 
     async def resolve_key(self, key_id):
@@ -147,6 +171,27 @@ class Node:
         return r.json() if r.status_code == 200 else None
 
     # ---------------- verification ----------------
+    def check_attrs(self, attrs, allowed_headers, now):
+        """Algorithm, declared headers and time window of a parsed Signature (shared by requests, callbacks, Acks)."""
+        if attrs["algorithm"] != "ed25519":
+            raise Reject(401, "AUT_SIGNATURE_INVALID", "algorithm must be ed25519")
+        if attrs["headers"] not in allowed_headers:
+            raise Reject(401, "AUT_SIGNATURE_INVALID", f"unexpected headers list {attrs['headers']!r}")
+        created, expires = int(attrs["created"]), int(attrs["expires"])
+        if expires <= created:
+            raise Reject(401, "AUT_SIGNATURE_INVALID", "expires must be greater than created")
+        if created > now + self.clock_skew:
+            raise Reject(401, "AUT_SIGNATURE_INVALID", "created is in the future")
+        if expires < now:
+            raise Reject(401, "AUT_SIGNATURE_INVALID", "signature expired")
+
+    @staticmethod
+    def check_key(key, expires, now):
+        if key.get("status") != "ACTIVE" or int(key.get("validUntil", 0)) < now:
+            raise Reject(401, "AUT_KEY_EXPIRED_OR_REVOKED", "signing key revoked or expired")
+        if expires > int(key["validUntil"]):
+            raise Reject(401, "AUT_SIGNATURE_INVALID", "expires exceeds key registration (CON-004-07)")
+
     async def verify_signature(self, raw: bytes, auth: str | None, allowed_headers,
                                request_signature_for=None) -> Verified:
         """NFH-007 §7 / §8. `request_signature_for(attrs)` returns the CN's own stored
@@ -159,22 +204,11 @@ class Node:
             raise Reject(401, "AUT_SIGNATURE_INVALID", "malformed Authorization header") from None
         if not auth.startswith("Signature "):
             raise Reject(401, "AUT_SIGNATURE_INVALID", "Authorization scheme must be 'Signature'")
-        if attrs["algorithm"] != "ed25519":
-            raise Reject(401, "AUT_SIGNATURE_INVALID", "algorithm must be ed25519")
-        if attrs["headers"] not in allowed_headers:
-            raise Reject(401, "AUT_SIGNATURE_INVALID", f"unexpected headers list {attrs['headers']!r}")
-        created, expires, now = int(attrs["created"]), int(attrs["expires"]), now_ts()
-        if expires <= created:
-            raise Reject(401, "AUT_SIGNATURE_INVALID", "expires must be greater than created")
-        if created > now + self.clock_skew:
-            raise Reject(401, "AUT_SIGNATURE_INVALID", "created is in the future")
-        if expires < now:
-            raise Reject(401, "AUT_SIGNATURE_INVALID", "signature expired")
+        now = now_ts()
+        self.check_attrs(attrs, allowed_headers, now)
         key = await self.resolve_key(attrs["keyId"])
-        if key.get("status") != "ACTIVE" or int(key.get("validUntil", 0)) < now:
-            raise Reject(401, "AUT_KEY_EXPIRED_OR_REVOKED", "signing key revoked or expired")
-        if expires > int(key["validUntil"]):
-            raise Reject(401, "AUT_SIGNATURE_INVALID", "expires exceeds key registration (CON-004-07)")
+        self.check_key(key, int(attrs["expires"]), now)
+        created, expires = int(attrs["created"]), int(attrs["expires"])
         chained = attrs["headers"] == signing.CHAIN_HEADERS
         req_sig = request_signature_for(attrs) if chained else None
         if chained and req_sig is None:
@@ -187,7 +221,7 @@ class Node:
     def parse_body(self, raw: bytes):
         try:
             body = json.loads(raw.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):  # deep nesting is hostile input, not a crash
             raise Reject(400, "SCH_INVALID_JSON", "body is not valid UTF-8 JSON") from None
         if not isinstance(body, dict):
             raise Reject(400, "SCH_INVALID_JSON", "body must be a JSON object")

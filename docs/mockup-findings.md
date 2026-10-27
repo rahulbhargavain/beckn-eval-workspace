@@ -33,7 +33,7 @@ Every server is uvicorn on `127.0.0.1` on an OS-chosen port, run in-process in a
 
 ### Results (real run)
 
-**Current (Windows, 2026-10-27): 211 passed, 10 xfailed, 0 failed** in about 173 s, after adding the domain packs, catalog store, policy, decimal quantities and lost-callback tests. The original run, before those, was 75 passed, 9 xfailed in about 97 s; its tests were written first, and its first run failed at collection because `beckn_mock.network` did not exist yet.
+**Current (Windows, 2026-10-27): 246 passed, 10 xfailed, 0 failed** in about 221 s, after adding the domain packs, catalog store, policy, decimal quantities and lost-callback tests. The original run, before those, was 75 passed, 9 xfailed in about 97 s; its tests were written first, and its first run failed at collection because `beckn_mock.network` did not exist yet.
 
 Mutation checks confirmed the tests can detect failures (run against the original 75-test suite). I disabled one control at a time:
 
@@ -132,3 +132,20 @@ Other gaps not covered by xfails:
 - **A lost callback has no specified remedy (spec gap, 10th xfail).** The Communication Protocol FAQ entry "What happens if a PN sends an Ack but then never delivers the promised callback?" is answered "TBA", and there is no callback timeout or redelivery rule. The BPP here makes one delivery attempt and does not retry. `tests/test_lost_callbacks.py` pins what a CN can do today: re-ask with `status` under a new `messageId`, and expect `BIZ_ALREADY_CONFIRMED` if it re-sends `confirm`.
 - **Recovery by `status` needs the full contract.** A bare `{"id": ...}` status request is schema-invalid (S-gap "minimal status request"), so the CN must have kept the last contract it saw, or the recovery request itself is rejected.
 - The fault is injected at the BAP's callback endpoint (503 for chosen actions). No external proxy is needed because v2 has no gateway in the call path.
+
+## External audit, round 1 (of snapshot de731ca)
+
+An outside reviewer audited the first `audit_snapshot` (commit `de731ca`). Each finding was checked against the code, A1 and A8 reproduced by running them, then fixed test-first (`mockup/tests/test_audit_fixes.py`, `conformance/tests/test_audit_fixes.py`).
+
+| ID | Status | Fix |
+|---|---|---|
+| A1 | Fixed | Request bodies are read with a 1 MiB cap before any hashing or parsing (`node.read_body`); `RecursionError` from hostile nesting is a 400, not a 500. The BAP still parses once to find `messageId` before verifying, now bounded. |
+| A2 | Not fixed, by decision | `pending`, `callbacks`, `contracts` etc. grow without bound. Eviction would be wrong for the BPP's contracts (authoritative state); the real fix is persistence (SQLite) with a TTL sweep for the soft state. Acceptable for per-test networks, not for a long-running node. |
+| A3 | Fixed | Implicit key ids must be `ns/registry/record` of `[A-Za-z0-9._:@-]` with no `.`/`..`; explicit URLs may not carry query, fragment, userinfo, `%`, backslash, empty or dot segments. The path-traversal part was not shown to be exploitable against httpx and is closed defensively. |
+| A4 | Fixed | `check_attrs` and `check_key` are shared by inbound verification and the BAP's Ack verification (algorithm, headers, `expires > created`, `created` skew, expiry, key status, `expires <= validUntil`). |
+| A5 | Fixed | `check_target` refuses credentials in `base_url`; the runner caps each response at 1 MiB (a larger one fails the scenario). |
+| A6 | Fixed | `admit` also refuses probe reports, reports carrying problems, and duplicate result ids, even when signed. Defence in depth: the runner never produced such a CERTIFIED report. |
+| A7 | Fixed | A naive or malformed `next_update` is a `SHAPE` problem, not a `TypeError`; the canonicalizer serialises int subclasses as plain integers (no behaviour change for JSON input). |
+| A8 | Fixed | A `quantity` that is not an object is refused with `SCH_SCHEMA_VALIDATION_FAILED` on select/init/confirm and on `/update` (preview and commit). Previously it was silently priced as 1 and crashed `/update` with a 500. |
+
+Also noted in the review and already tracked: the DNS-rebinding TOCTOU in `urlguard.py`, and the callback receiver. The reviewer's suggestion to add cryptographic Ack verification to the runner was already done (`41e086f`); their snapshot predated it.

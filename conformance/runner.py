@@ -26,6 +26,7 @@ SIGNED = "beckn-http-signature"
 MISSING = object()
 MAX_AGE_SECONDS = 90 * 24 * 3600
 MAX_FUTURE_SKEW = 300
+MAX_RESPONSE_BYTES = 1_048_576  # a hostile SUT must not be able to stream the runner out of memory
 
 ROLES = {"BAP", "BPP", "DS"}
 LEVELS = {"mandatory", "recommended"}
@@ -55,6 +56,8 @@ def check_target(base_url, allow_hosts=None):
     host = (parts.hostname or "").lower()
     if parts.scheme not in ("http", "https") or not host:
         raise TargetNotAllowed("base_url must be an http(s) URL")
+    if "@" in parts.netloc:
+        raise TargetNotAllowed("base_url must not carry credentials (they would be sent on and copied into the report)")
     if host in LOOPBACK:
         return
     if parts.scheme != "https":
@@ -276,11 +279,17 @@ def _unknown_identity(identity):
 
 def _send(url, method, data, headers, timeout):
     r = urllib.request.Request(url, data=data, headers=headers, method=method)
+    def bounded(stream):
+        body = stream.read(MAX_RESPONSE_BYTES + 1)
+        if len(body) > MAX_RESPONSE_BYTES:
+            raise ValueError(f"response larger than {MAX_RESPONSE_BYTES} bytes")
+        return body
+
     try:
         with _OPENER.open(r, timeout=timeout) as resp:
-            return resp.status, {k.lower(): v for k, v in resp.headers.items()}, resp.read()
+            return resp.status, {k.lower(): v for k, v in resp.headers.items()}, bounded(resp)
     except urllib.error.HTTPError as e:
-        return e.code, {k.lower(): v for k, v in e.headers.items()}, e.read()
+        return e.code, {k.lower(): v for k, v in e.headers.items()}, bounded(e)
 
 
 def _call(base_url, req, timeout, fixtures_root, identity):
@@ -474,6 +483,13 @@ def _admit(report, spec, role, participant, profile, pub_b64, now):
     required = profile.get("required")
     if not isinstance(required, dict) or not required:
         return False, "profile has no pinned required scenarios"
+    ids = [r["id"] for r in report["results"]]
+    if len(set(ids)) != len(ids):
+        return False, "duplicate result ids"
+    if report.get("probe"):
+        return False, "probe run (subset of scenarios)"
+    if report.get("problems"):
+        return False, "report carries problems"
     outcomes = {r["id"]: r["outcome"] for r in report["results"]}
     for rid, h in required.items():
         if outcomes.get(rid) != "pass":

@@ -12,7 +12,7 @@ from fastapi import Request
 from fastapi.responses import Response
 
 from . import signing, spec, urlguard
-from .node import Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, same_url
+from .node import Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, read_body, same_url
 
 
 @dataclass
@@ -101,14 +101,16 @@ class BapNode(Node):
         return SendResult(r.status_code, rbody, r.headers, ctx["messageId"], ctx["transactionId"], verified, r.content)
 
     def _verify_ack(self, r, our_sig, responder_id):
-        """NFH-007 §5: verify the responder's Signature header and its request-signature chain."""
+        """NFH-007 §5: verify the responder's Signature header and its request-signature chain, applying
+        the same algorithm, header, time-window and key-validity checks as inbound verification."""
         try:
             attrs = signing.parse_authorization(r.headers.get("signature"))
+            now = now_ts()
+            self.check_attrs(attrs, {signing.CHAIN_HEADERS}, now)
             key = self.resolve_key_sync(attrs["keyId"])
-            if not key or key.get("status") != "ACTIVE" or key.get("subscriberId") != responder_id:
+            if not key or key.get("subscriberId") != responder_id:
                 return False
-            if attrs["headers"] != signing.CHAIN_HEADERS or int(attrs["expires"]) < now_ts():
-                return False
+            self.check_key(key, int(attrs["expires"]), now)
             text = signing.signing_string(int(attrs["created"]), int(attrs["expires"]),
                                           signing.body_digest(r.content), our_sig)
             return signing.verify(key["publicKey"], text, attrs["signature"])
@@ -120,10 +122,13 @@ class BapNode(Node):
         cb_action = f"on_{action}"
 
         async def handler(request: Request):
-            raw = await request.body()
             auth = request.headers.get("authorization")
             req_sig = raw_signature(auth)
             mid = None
+            try:
+                raw = await read_body(request)
+            except Reject as rej:
+                return self.nack(rej, None, req_sig)
             if cb_action in self.drop_callbacks:
                 try:
                     mid = json.loads(raw).get("context", {}).get("messageId")
