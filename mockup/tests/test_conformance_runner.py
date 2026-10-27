@@ -76,3 +76,89 @@ def test_certification_is_impossible_without_the_nodes_public_key(net):
                      identity=identity_for(net))
     assert rep["verdict"] == "FAILED"
     assert any("--sut-key" in r.get("detail", "") for r in rep["results"])
+
+
+# ---------------------------------------------------------------- async on_* callbacks (local listener)
+def _cb_base():
+    s = next(x for x in runner.load_scenarios(runner.DEFAULT_SCENARIOS) if x["id"] == "CB-001")
+    return json.loads(json.dumps(s))
+
+
+def _cb_scenario(**over):
+    s = _cb_base()
+    s["expect"]["callback"].update(over)
+    return s
+
+
+def _free_port():
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _cb_identity(net):
+    """A harness identity registered with the loopback URL the runner's listener will bind."""
+    uri = f"http://127.0.0.1:{_free_port()}"
+    ident = net.new_identity("cb.harness.example", "BAP", uri, register=True)
+    net.bpp.callback_allowlist = [*net.bpp.callback_allowlist, uri]  # the node's own SSRF policy: allow this origin
+    return {"key_id": ident.key_id, "bap_id": "cb.harness.example", "bap_uri": uri, "network_id": net.network_id,
+            "private_key_seed_b64": base64.b64encode(bytes(ident.keypair.signing_key)).decode()}
+
+
+def _run_cb(net, scenario, identity=None):
+    prof = {"name": "p", "spec": "beckn-2.0.0", "role": "DS"}
+    return runner.run([scenario], prof, net.bpp_url, "mock-bpp", identity=identity or _cb_identity(net),
+                      sut_keys=sut_keys(net))["results"][0]
+
+
+def test_cb001_the_mockup_delivers_a_verifiable_on_discover(net):
+    r = _run_cb(net, _cb_scenario())
+    assert r["outcome"] == "pass", r
+
+
+def test_cb001_a_callback_chained_to_the_wrong_request_fails(net, monkeypatch):
+    from beckn_mock import signing as msign
+    real = msign.sign_message
+    monkeypatch.setattr(msign, "sign_message", lambda kp, kid, raw, c, e, request_signature=None:
+                        real(kp, kid, raw, c, e, request_signature="AAAA" if request_signature else None))
+    r = _run_cb(net, _cb_scenario(within=2))
+    assert r["outcome"] == "fail" and "does not verify" in r["detail"], r
+
+
+def test_cb001_a_callback_that_never_comes_fails_after_the_wait(net):
+    net.bpp.callback_delay = 5
+    r = _run_cb(net, _cb_scenario(within=0.5))
+    assert r["outcome"] == "fail" and "no on_discover callback" in r["detail"], r
+
+
+def test_cb001_expected_callback_content_is_asserted(net):
+    r = _run_cb(net, _cb_scenario(jsonpath={"$.message.catalogs[0].id": {"pattern": "^never-matches$"}}))
+    assert r["outcome"] == "fail" and "catalogs" in r["detail"], r
+
+
+def test_callback_scenarios_fail_clearly_against_a_remote_target():
+    prof = {"name": "p", "spec": "beckn-2.0.0", "role": "DS"}
+    ident = {"key_id": "k|ed25519", "bap_id": "h", "bap_uri": "https://h.example", "network_id": "n",
+             "private_key_seed_b64": base64.b64encode(bytes(nacl.signing.SigningKey.generate())).decode()}
+    r = runner.run([_cb_base()], prof, "https://sut.example", "p", identity=ident,
+                   allow_hosts={"sut.example"})["results"][0]
+    assert r["outcome"] == "fail" and "loopback" in r["detail"], r
+
+
+def test_callback_scenario_needs_a_loopback_bap_uri_even_on_a_loopback_target(net):
+    r = _run_cb(net, _cb_scenario(), identity=dict(identity_for(net), bap_uri="https://harness.example/b"))
+    assert r["outcome"] == "fail" and "bap_uri" in r["detail"], r
+
+
+def test_callback_scenario_validation():
+    for bad in ({"action": "discover"}, {"action": "on_x", "within": 0}, {"action": "on_x", "within": 61},
+                {"action": "on_x", "extra": 1}, "on_x", {"within": 3}):
+        s = _cb_base()
+        s["expect"]["callback"] = bad
+        with pytest.raises(runner.ScenarioError):
+            runner.validate_scenario(s)
+    s = _cb_base()
+    s["request"].pop("auth")
+    with pytest.raises(runner.ScenarioError):
+        runner.validate_scenario(s)

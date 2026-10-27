@@ -32,4 +32,4 @@ Open Commerce / ONDC profile (Beckn-based, India), Shopify/UCP-style or ACP agen
 
 - DeDi onboarding generator/validator: conformance/dedi.py (docs/dedi-onboarding.md). Signing follows the spec text but is not cross-checked against another implementation; upstream example signatures are placeholders.
 
-- Test figures as of 2026-10-27 (Windows, local): mockup + conformance together 450 passed / 1 skipped / 10 xfailed (before round 2: mockup 246 + conformance 194); viewer 12 passed. Linux not re-run since the line-ending hash fix. The 10 xfails are strict spec-gap checks, not mockup bugs.
+- Test figures as of 2026-10-27 (Windows, local): mockup + conformance together 481 passed / 1 skipped / 10 xfailed (after the callback listener; 450 before it); viewer 12 passed. Linux not re-run since the line-ending hash fix. The 10 xfails are strict spec-gap checks, not mockup bugs.

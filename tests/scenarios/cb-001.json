@@ -1,0 +1,35 @@
+{
+  "id": "CB-001",
+  "name": "discover is answered by a signed, request-chained on_discover callback",
+  "level": "recommended",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Needs the runner's local callback listener, so only loopback targets can run it (the listener binds 127.0.0.1 and the runner puts its address in context.bapUri). The callback must carry Authorization with headers=\"(created) (expires) digest request-signature\", chained to the signature the runner sent, signed by a key given with --sut-key. Not pinned in any profile.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature"
+  },
+  "expect": {
+    "status_in": [
+      200,
+      202
+    ],
+    "jsonpath": {
+      "$.message.status": "ACK"
+    },
+    "response_signature": {
+      "chain": true
+    },
+    "callback": {
+      "action": "on_discover",
+      "within": 5,
+      "jsonpath": {
+        "$.context.messageId": "{{request.context.messageId}}"
+      }
+    }
+  }
+}

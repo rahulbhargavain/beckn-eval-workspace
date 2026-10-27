@@ -34,7 +34,9 @@ FAULTS = {"bad-signature", "unknown-participant", "replay", "replay-new-body", "
           "missing-message"}
 SCENARIO_KEYS = {"id", "level", "roles", "spec", "name", "notes", "pending", "pendingReason", "request", "expect"}
 REQUEST_KEYS = {"method", "path", "body", "auth", "fault", "headers"}
-EXPECT_KEYS = {"status", "status_in", "jsonpath", "headers", "response_signature"}
+EXPECT_KEYS = {"status", "status_in", "jsonpath", "headers", "response_signature", "callback"}
+CALLBACK_KEYS = {"action", "within", "jsonpath"}
+MAX_CALLBACK_WAIT = 60
 OPERATORS = {"exists", "type", "enum", "pattern"}
 TYPES = {"string", "number", "integer", "boolean", "null", "object", "array"}
 
@@ -185,6 +187,20 @@ def validate_scenario(s):
     for h, want in (exp.get("headers") or {}).items():
         if not _is_operator(want):
             bad(f"header {h} needs an operator object")
+    if "callback" in exp:
+        cb = exp["callback"]
+        if not isinstance(cb, dict) or set(cb) - CALLBACK_KEYS or not re.fullmatch(r"on_[a-z]+(_[a-z]+)*", str(cb.get("action", ""))):
+            bad("expect.callback must be an object with an on_<action> `action` and optional within/jsonpath")
+        w = cb.get("within", 5)
+        if isinstance(w, bool) or not isinstance(w, (int, float)) or not 0 < w <= MAX_CALLBACK_WAIT:
+            bad(f"expect.callback.within must be a number of seconds in (0, {MAX_CALLBACK_WAIT}]")
+        for p in (cb.get("jsonpath") or {}):
+            try:
+                jsonpath({}, p)
+            except ScenarioError as e:
+                bad(str(e))
+        if req.get("auth") != SIGNED or req.get("fault") is not None:
+            bad("expect.callback needs a signed request without a fault (a faulted request is never answered)")
     if "response_signature" in exp:
         if exp["response_signature"] != {"chain": True}:
             bad('response_signature must be exactly {"chain": true}')
@@ -292,7 +308,7 @@ def _send(url, method, data, headers, timeout):
         return e.code, {k.lower(): v for k, v in e.headers.items()}, bounded(e)
 
 
-def _call(base_url, req, timeout, fixtures_root, identity):
+def _call(base_url, req, timeout, fixtures_root, identity, listener=None):
     """Returns (status, response headers, body bytes, sent context, Authorization header of the last request)."""
     signed, fault = req.get("auth") == SIGNED, req.get("fault")
     parts = urlsplit(base_url)
@@ -330,6 +346,9 @@ def _call(base_url, req, timeout, fixtures_root, identity):
             doc["context"]["transactionId"] = str(uuid.uuid4())
             data = _dumps(doc)
         sign(data, t0 + 1)  # different created second => different Authorization header on a byte-identical body
+    if listener is not None and signed and isinstance(ctx.get("messageId"), str):
+        from . import signing
+        listener.expect(ctx["messageId"], signing.signature_of(headers.get("Authorization")))  # before the node can answer
     status, rh, raw = _send(url, method, data, headers, timeout)
     return status, rh, raw, ctx, headers.get("Authorization")
 
@@ -342,12 +361,39 @@ def _expected(want, ctx):
     return want
 
 
-def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None):
+def _callback_port(base_url, identity):
+    """Port for the local listener, or None when the target or the identity's bap_uri rules it out."""
+    if urlsplit(base_url).hostname not in LOOPBACK:
+        return None
     try:
-        status, rh, raw, ctx, sent_auth = _call(base_url, s["request"], timeout, fixtures_root, identity)
+        u = urlsplit((identity or {}).get("bap_uri", ""))
+        return u.port if u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost") and u.username is None else None
+    except ValueError:
+        return None
+
+
+def _jsonpath_problem(doc, assertions, ctx):
+    """First failed jsonpath assertion as a message, or None."""
+    for p, want in assertions.items():
+        got = jsonpath(doc, p)
+        want = _expected(want, ctx)
+        if want is MISSING:
+            return f"{p}: template refers to a field the request did not carry"
+        ok = op_match(got, want) if _is_operator(want) else (got is not MISSING and values_match(got, want))
+        if not ok:
+            return f"{p}: got {_short(None if got is MISSING else got)}, want {_short(want)}"
+    return None
+
+
+def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None, listener=None):
+    exp = s["expect"]
+    if exp.get("callback") and listener is None:
+        return False, ("callback scenarios need the local listener: a loopback target and an identity whose bap_uri is "
+                       "http://127.0.0.1:<free port> (the URL registered for it), because the node must reach the listener there")
+    try:
+        status, rh, raw, ctx, sent_auth = _call(base_url, s["request"], timeout, fixtures_root, identity, listener)
     except Exception as e:  # unreachable, timeout, TLS failure, missing identity, precondition...
         return False, f"request error: {_short(str(e), 200)}"
-    exp = s["expect"]
     allowed = exp["status_in"] if "status_in" in exp else [exp["status"]]
     if status not in allowed:
         return False, f"status {status} not in {allowed}"
@@ -360,20 +406,25 @@ def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None):
             doc = json.loads(raw)
         except ValueError:
             return False, "response is not JSON"
-        for p, want in exp["jsonpath"].items():
-            got = jsonpath(doc, p)
-            want = _expected(want, ctx)
-            if want is MISSING:
-                return False, f"{p}: template refers to a field the request did not carry"
-            ok = op_match(got, want) if _is_operator(want) else (got is not MISSING and values_match(got, want))
-            if not ok:
-                return False, f"{p}: got {_short(None if got is MISSING else got)}, want {_short(want)}"
+        if problem := _jsonpath_problem(doc, exp["jsonpath"], ctx):
+            return False, problem
     if exp.get("response_signature"):
         from . import signing
         try:
             signing.check_response(rh, raw, sent_auth, sut_keys)
         except signing.ResponseSignatureError as e:
             return False, f"response Signature: {e}"
+    if cb := exp.get("callback"):
+        within = cb.get("within", 5)
+        rec = listener.wait(ctx.get("messageId"), within)
+        if rec is None:
+            return False, f"no {cb['action']} callback within {within}s"
+        if not rec["ok"]:
+            return False, f"callback refused: {rec['error']}"
+        if rec["action"] != cb["action"]:
+            return False, f"got {rec['action']}, wanted {cb['action']}"
+        if problem := _jsonpath_problem(rec["body"], cb.get("jsonpath") or {}, ctx):
+            return False, f"callback {problem}"
     return True, ""
 
 
@@ -426,22 +477,35 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
             problems.append(f"required scenario {rid} differs from the pinned version")
     results, warnings, hashes = [], [], {}
     mand_fail = mand_pending = False
-    for i, s in enumerate(applicable):
-        if delay and i:
-            time.sleep(delay)
-        mandatory = s["level"] == "mandatory"
-        hashes[s["id"]] = scenario_hash(s, fixtures_root)
-        if s.get("pending"):
-            results.append({"id": s["id"], "level": s["level"], "outcome": "pending"})
-            mand_pending |= mandatory
-            continue
-        ok, why = _check(s, base_url, timeout, fixtures_root, identity, sut_keys)
-        results.append({"id": s["id"], "level": s["level"], "outcome": "pass" if ok else "fail", "detail": why})
-        if not ok:
-            if mandatory:
-                mand_fail = True
-            else:
-                warnings.append(s["id"])
+    listener = None
+    wants_callbacks = any(s["expect"].get("callback") and not s.get("pending") for s in applicable)
+    callback_port = _callback_port(base_url, identity) if wants_callbacks else None
+    if callback_port:
+        from .callbacks import CallbackListener
+        try:
+            listener = CallbackListener(sut_keys, port=callback_port)
+        except OSError:
+            listener = None  # port in use: the callback scenarios fail with the explanation below
+    try:
+        for i, s in enumerate(applicable):
+            if delay and i:
+                time.sleep(delay)
+            mandatory = s["level"] == "mandatory"
+            hashes[s["id"]] = scenario_hash(s, fixtures_root)
+            if s.get("pending"):
+                results.append({"id": s["id"], "level": s["level"], "outcome": "pending"})
+                mand_pending |= mandatory
+                continue
+            ok, why = _check(s, base_url, timeout, fixtures_root, identity, sut_keys, listener)
+            results.append({"id": s["id"], "level": s["level"], "outcome": "pass" if ok else "fail", "detail": why})
+            if not ok:
+                if mandatory:
+                    mand_fail = True
+                else:
+                    warnings.append(s["id"])
+    finally:
+        if listener is not None:
+            listener.close()
     has_mandatory = any(s["level"] == "mandatory" for s in applicable)
     if probe:
         problems.append("probe run (--only): subset of scenarios, never certifiable")
