@@ -1,8 +1,7 @@
 {
-  "name": "search returns ACK",
-  "spec": "beckn-1.x (UNVERIFIED)",
-  "pending": true,
-  "pendingReason": "fixture and spec version not yet verified",
-  "request": { "method": "POST", "path": "/search", "body": "fixtures/search.json" },
-  "expect": { "status": 200, "jsonpath": { "$.message.ack.status": "ACK" } }
+  "name": "discover returns ACK",
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a, api/v2.0.0/beckn.yaml paths./discover)",
+  "notes": "v2 renamed search -> discover (docs/Communication_Protocol.md Migration Notes); Ack body is {message:{status,messageId}} (components/schemas/Ack). The harness MUST sign the request (Beckn HTTP Signature, docs/Authentication_and_Trust.md §4) and template context.bapId/bapUri/messageId/networkId with the harness's registered CN identity and a fresh UUID; an unsigned request is answered 401. timestamp/ttl are omitted so the fixture cannot go stale.",
+  "request": { "method": "POST", "path": "/discover", "body": "fixtures/search.json", "auth": "beckn-http-signature" },
+  "expect": { "status": 200, "jsonpath": { "$.message.status": "ACK" } }
 }

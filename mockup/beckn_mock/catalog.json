@@ -1,0 +1,29 @@
+{
+  "id": "catalog-mock-001",
+  "descriptor": {"name": "Mock generic catalog", "shortDesc": "Domain-agnostic sample catalog"},
+  "provider": {"id": "provider-001", "descriptor": {"name": "Mock Provider"}},
+  "resources": [
+    {"id": "res-001", "descriptor": {"name": "Generic Widget", "shortDesc": "A physical good"}},
+    {"id": "res-002", "descriptor": {"name": "Consulting Hour", "shortDesc": "One hour of a service"}}
+  ],
+  "offers": [
+    {
+      "id": "offer-001",
+      "descriptor": {"name": "Widget standard price"},
+      "resourceIds": ["res-001"],
+      "considerations": [{
+        "id": "price-offer-001",
+        "considerationAttributes": {"@context": "https://schema.example.org/mock/v1", "@type": "PriceSpecification", "currency": "INR", "value": 100}
+      }]
+    },
+    {
+      "id": "offer-002",
+      "descriptor": {"name": "Consulting hourly rate"},
+      "resourceIds": ["res-002"],
+      "considerations": [{
+        "id": "price-offer-002",
+        "considerationAttributes": {"@context": "https://schema.example.org/mock/v1", "@type": "PriceSpecification", "currency": "INR", "value": 1500}
+      }]
+    }
+  ]
+}
