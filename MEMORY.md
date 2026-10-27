@@ -31,3 +31,5 @@ Open Commerce / ONDC profile (Beckn-based, India), Shopify/UCP-style or ACP agen
 - BPP serves a multi-catalog `CatalogStore` (mockup/beckn_mock/catalogstore.py); only `textSearch` discovery is implemented.
 
 - DeDi onboarding generator/validator: conformance/dedi.py (docs/dedi-onboarding.md). Signing follows the spec text but is not cross-checked against another implementation; upstream example signatures are placeholders.
+
+- Test figures as of 2026-10-27 (Windows, local): mockup 209 passed / 10 xfailed; conformance 145 passed / 1 skipped; viewer 12 passed. Linux not re-run since the line-ending hash fix. The 10 xfails are strict spec-gap checks, not mockup bugs.

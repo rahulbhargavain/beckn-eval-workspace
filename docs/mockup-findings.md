@@ -33,9 +33,9 @@ Every server is uvicorn on `127.0.0.1` on an OS-chosen port, run in-process in a
 
 ### Results (real run)
 
-**75 passed, 9 xfailed, 0 failed** in about 97 s. The tests were written first, and the first run failed at collection because `beckn_mock.network` did not exist yet.
+**Current (Windows, 2026-10-27): 209 passed, 10 xfailed, 0 failed** in about 163 s, after adding the domain packs, catalog store, policy, decimal quantities and lost-callback tests. The original run, before those, was 75 passed, 9 xfailed in about 97 s; its tests were written first, and its first run failed at collection because `beckn_mock.network` did not exist yet.
 
-Mutation checks confirmed the tests can detect failures. I disabled one control at a time:
+Mutation checks confirmed the tests can detect failures (run against the original 75-test suite). I disabled one control at a time:
 
 | Control disabled | Result |
 |---|---|
@@ -44,7 +44,7 @@ Mutation checks confirmed the tests can detect failures. I disabled one control 
 | URL guard | 16 failures |
 | Expiry check | 1 failure |
 
-Each of the 9 xfails (`tests/test_spec_gaps.py`, `strict=True`) records a defect in the spec artefacts themselves (items 1-9 below). They will start XPASS-failing once upstream fixes them.
+Each of the 10 xfails (`tests/test_spec_gaps.py`, `strict=True`) records a defect in the spec artefacts themselves: items 1-9 below plus the Ack-without-callback gap (item 13, last section). They will start XPASS-failing once upstream fixes them.
 
 ## Mockup assumptions where the spec is silent
 
