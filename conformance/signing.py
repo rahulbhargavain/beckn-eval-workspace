@@ -27,7 +27,7 @@ def authorization(identity: dict, raw: bytes, now=None, ttl=60) -> str:
 import re  # noqa: E402
 
 RESPONSE_HEADERS = "(created) (expires) digest request-signature"
-RESPONSE_SKEW = 5  # seconds of clock difference tolerated either way
+RESPONSE_SKEW = 5  # seconds of clock difference tolerated on `created`; `expires` gets none
 _RESPONSE_RE = re.compile(
     r'^(?:Signature )?keyId="(?P<keyId>[^"]+)",algorithm="(?P<algorithm>[^"]+)",created="(?P<created>\d+)",'
     r'expires="(?P<expires>\d+)",headers="(?P<headers>[^"]+)",signature="(?P<signature>[A-Za-z0-9+/]+=*)"$')
@@ -69,7 +69,7 @@ def check_response(headers, body, sent_authorization, trusted_keys, now=None):
         raise ResponseSignatureError("expires must be after created")
     if created > now + RESPONSE_SKEW:
         raise ResponseSignatureError("created is in the future")
-    if expires < now - RESPONSE_SKEW:
+    if expires < now:  # skew is tolerated on `created` only (NFH-007)
         raise ResponseSignatureError("signature expired")
     chained = re.search(r'signature="([^"]+)"', sent_authorization or "")
     if not chained:

@@ -151,7 +151,7 @@ class BapNode(Node):
 
                 v = await self.verify_signature(raw, auth, {signing.STD_HEADERS, signing.CHAIN_HEADERS},
                                                 request_signature_for=stored_sig)
-                body = self.parse_body(raw)
+                body = peek if peek is not None else self.parse_body(raw)
                 ctx = self.validate("/" + cb_action, body, "bppId")
                 if v.key["subscriberId"] != ctx["bppId"]:
                     raise Reject(401, "AUT_UNAUTHORIZED_ACTION", "signer is not context.bppId", mid)

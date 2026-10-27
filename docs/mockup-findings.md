@@ -149,3 +149,16 @@ An outside reviewer audited the first `audit_snapshot` (commit `de731ca`). Each 
 | A8 | Fixed | A `quantity` that is not an object is refused with `SCH_SCHEMA_VALIDATION_FAILED` on select/init/confirm and on `/update` (preview and commit). Previously it was silently priced as 1 and crashed `/update` with a 500. |
 
 Also noted in the review and already tracked: the DNS-rebinding TOCTOU in `urlguard.py`, and the callback receiver. The reviewer's suggestion to add cryptographic Ack verification to the runner was already done (`41e086f`); their snapshot predated it.
+
+## External audit, round 2 (of snapshot 7d2dc55)
+
+The reviewer confirmed A1, A3–A8 and raised B1–B6. Each was checked against the code; tests first (same two `test_audit_fixes.py` files).
+
+| ID | Status | Outcome |
+|---|---|---|
+| B1 | Partly fixed | The signed report now records `sut_keys` (the response-signature keys trusted during the run), and `admit(..., registered_sut_keys=...)` refuses a report whose keys differ from the registered ones. Not done: requiring the response `keyId` to end in `\|ed25519`; trust is an exact lookup in the operator's key map, so the suffix adds nothing. |
+| B2 | Fixed | `check_response` no longer tolerates an `expires` in the past (skew applies to `created` only), matching the node. |
+| B3 | Partly fixed | A valid callback body is now parsed once, not twice. Not moved: the pre-verification parse stays, because the Nack needs `messageId`; it is bounded by the 1 MiB cap. |
+| B4 | Fixed | A malformed `context.timestamp` is `400 CTX_INVALID_FIELD` even when no `date-time` format checker is installed. |
+| B5 | Not a defect | `dedi` CLI already catches the `ValueError` from a naive `--now` and exits 2; a test now pins that. `updated_at` is shape-checked by the schema. |
+| B6 | Fixed | The catalog store refuses prices that are not finite or exceed 1e15 (previously `Infinity`, which `json` accepts, would crash `/select` with a 500). |

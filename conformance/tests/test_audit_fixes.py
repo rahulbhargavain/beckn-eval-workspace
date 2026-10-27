@@ -137,3 +137,56 @@ def test_jcs_serialises_int_subclasses_as_plain_integers():
     class Level(enum.IntEnum):
         HIGH = 5
     assert dedi.jcs({"n": Level.HIGH}) == b'{"n":5}'
+
+
+# ---------------------------------------------------------------- round 2: B1, B2, B5
+from conformance import signing as csigning  # noqa: E402
+
+
+def test_b2_response_signature_has_no_grace_after_expires():
+    """NFH-007: skew is tolerated on `created` only; `expires` has none (matches the mockup node)."""
+    import hashlib
+    import re
+    now = 1_800_000_000
+    ident = {"key_id": "h/keys/1|ed25519", "private_key_seed_b64": base64.b64encode(bytes(OP)).decode()}
+    auth = csigning.authorization(ident, b"{}", now=now)
+    body = b"{}"
+    created, expires = now - 62, now - 2
+    dig = "BLAKE2b-512=" + base64.b64encode(hashlib.blake2b(body, digest_size=64).digest()).decode()
+    text = (f"(created): {created}\n(expires): {expires}\ndigest: {dig}\n"
+            f"request-signature: {re.search(r'signature=\"([^\"]+)\"', auth).group(1)}")
+    sig = base64.b64encode(OP.sign(text.encode()).signature).decode()
+    hdr = (f'Signature keyId="s/keys/1|ed25519",algorithm="ed25519",created="{created}",expires="{expires}",'
+           f'headers="(created) (expires) digest request-signature",signature="{sig}"')
+    with pytest.raises(csigning.ResponseSignatureError, match="expired"):
+        csigning.check_response({"signature": hdr}, body, auth, {"s/keys/1|ed25519": PUB}, now)
+
+
+def _run_with_keys(keys):
+    s = {"id": "X-1", "level": "mandatory", "roles": ["BPP"], "spec": "t", "name": "n",
+         "request": {"method": "POST", "path": "/x", "body": {}}, "expect": {"status": 200}}
+    prof = {"name": "p", "spec": "t", "role": "BPP", "required": {"X-1": runner.scenario_hash(s, runner.DEFAULT_FIXTURES)}}
+    return runner.run([s], prof, "http://127.0.0.1:9", "me", sut_keys=keys, issuer=ISSUER), prof
+
+
+def test_b1_the_signed_report_commits_to_the_sut_keys_that_were_trusted():
+    rep, _ = _run_with_keys({"k2|ed25519": "BBBB", "k1|ed25519": "AAAA"})
+    assert rep["sut_keys"] == {"k1|ed25519": "AAAA", "k2|ed25519": "BBBB"}
+
+
+def test_b1_admit_can_require_the_registered_sut_key():
+    rep = good_report()
+    rep["sut_keys"] = {"k1|ed25519": "AAAA"}
+    rep = runner.resign(rep, ISSUER)
+    ok = lambda reg: runner.admit(rep, "beckn-2.0.0", "BPP", "me", PROFILE, PUB, now=1_800_000_100, registered_sut_keys=reg)
+    assert ok({"k1|ed25519": "AAAA"}) == (True, "ok")
+    assert ok({"k1|ed25519": "ZZZZ"})[0] is False          # a different key was trusted during the run
+    assert ok({"k9|ed25519": "AAAA"})[0] is False          # a key id the participant never registered
+    no_keys = runner.resign(good_report(), ISSUER)
+    assert runner.admit(no_keys, "beckn-2.0.0", "BPP", "me", PROFILE, PUB, now=1_800_000_100,
+                        registered_sut_keys={"k1|ed25519": "AAAA"})[0] is False   # no key recorded at all
+
+
+def test_b5_dedi_cli_reports_a_naive_now_instead_of_a_traceback(tmp_path, capsys):
+    rc = dedi.main(["verify", "--dir", str(tmp_path), "--domain", "x.example", "--now", "2026-10-27T10:00:00"])
+    assert rc == 2 and "error:" in capsys.readouterr().err

@@ -451,20 +451,24 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
            "role": profile["role"], "issued_at": int(now if now is not None else time.time()),
            "runner_version": RUNNER_VERSION, "base_url": base_url,
            "harness_key_id": (identity or {}).get("key_id"), "probe": probe, "verdict": verdict,
-           "warnings": warnings, "problems": problems, "scenario_hashes": hashes, "results": results}
+           "warnings": warnings, "problems": problems, "scenario_hashes": hashes, "results": results,
+           "sut_keys": dict(sorted((sut_keys or {}).items()))}
     rep["digest"] = digest(rep)
     return resign(rep, issuer) if issuer else rep
 
 
-def admit(report, spec, role, participant, profile, issuer_public_key_b64, now=None):
-    """Registry gate: (True, 'ok') or (False, reason). Never raises on malformed input."""
+def admit(report, spec, role, participant, profile, issuer_public_key_b64, now=None, registered_sut_keys=None):
+    """Registry gate: (True, 'ok') or (False, reason). Never raises on malformed input.
+
+    With `registered_sut_keys` (keyId -> base64 public key the participant registered), the report must
+    record exactly those keys as the ones trusted for response signatures during the run."""
     try:
-        return _admit(report, spec, role, participant, profile, issuer_public_key_b64, now)
+        return _admit(report, spec, role, participant, profile, issuer_public_key_b64, now, registered_sut_keys)
     except Exception as e:
         return False, f"malformed report ({type(e).__name__})"
 
 
-def _admit(report, spec, role, participant, profile, pub_b64, now):
+def _admit(report, spec, role, participant, profile, pub_b64, now, registered_sut_keys=None):
     if not isinstance(report, dict):
         return False, "report is not an object"
     if not report.get("signature"):
@@ -488,6 +492,8 @@ def _admit(report, spec, role, participant, profile, pub_b64, now):
         return False, "duplicate result ids"
     if report.get("probe"):
         return False, "probe run (subset of scenarios)"
+    if registered_sut_keys is not None and report.get("sut_keys") != dict(registered_sut_keys):
+        return False, "response signatures were checked against keys other than the registered ones"
     if report.get("problems"):
         return False, "report carries problems"
     outcomes = {r["id"]: r["outcome"] for r in report["results"]}

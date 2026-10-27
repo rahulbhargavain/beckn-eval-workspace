@@ -244,7 +244,10 @@ class Node:
             except ValueError as e:
                 raise Reject(400, "CTX_INVALID_FIELD", str(e), mid) from None
             if "timestamp" in ctx:
-                ts = datetime.fromisoformat(ctx["timestamp"].replace("Z", "+00:00"))
+                try:
+                    ts = datetime.fromisoformat(ctx["timestamp"].replace("Z", "+00:00"))
+                except (ValueError, AttributeError):  # no date-time format checker installed, or not a string
+                    raise Reject(400, "CTX_INVALID_FIELD", "context.timestamp is not an ISO 8601 date-time", mid) from None
                 if ts.tzinfo is None:
                     ts = ts.replace(tzinfo=timezone.utc)
                 if datetime.now(timezone.utc) > ts + ttl:

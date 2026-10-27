@@ -147,3 +147,37 @@ def test_non_object_quantity_on_update_is_a_4xx_not_a_500(net):
     for extra in ({"try": True}, {"try": False, "requestDigest": {"digest": "BLAKE-512=" + "A" * 86 + "=="}}):
         r = net.bap.send("update", {"contract": bad}, transaction_id=net.last_transaction_id, context_extra=extra)
         assert 400 <= r.status_code < 500, (extra, r.status_code, r.body)
+
+
+# ---------------------------------------------------------------- round 2: B3, B4, B6
+import math  # noqa: E402
+
+from beckn_mock import spec  # noqa: E402
+
+
+def test_b4_malformed_timestamp_is_a_400_even_without_a_date_time_format_checker(net, monkeypatch):
+    monkeypatch.setattr(spec, "request_errors", lambda path, body: [])
+    body = {"context": {"action": "discover", "version": "2.0.0", "transactionId": "t", "messageId": "m",
+                        "bapId": "x", "ttl": "PT30S", "timestamp": "not-a-date"}}
+    with pytest.raises(Reject) as e:
+        net.bpp.validate("/discover", body, "bapId")
+    assert e.value.http_status == 400 and e.value.code == "CTX_INVALID_FIELD"
+
+
+@pytest.mark.parametrize("bad", [float("inf"), float("nan"), -1, 10 ** 40])
+def test_b6_catalog_prices_must_be_finite_and_priceable(net, bad):
+    import copy
+    from beckn_mock.catalogstore import CatalogRejected
+    cat = copy.deepcopy(net.bpp.store.active()[0])
+    cat["offers"][0]["considerations"][0]["considerationAttributes"]["value"] = bad
+    with pytest.raises(CatalogRejected):
+        net.bpp.store.publish(cat)
+
+
+def test_b3_a_valid_callback_body_is_parsed_once(net, monkeypatch):
+    calls = []
+    orig = net.bap.parse_body
+    monkeypatch.setattr(net.bap, "parse_body", lambda raw: (calls.append(1), orig(raw))[1])
+    r = net.bap.send("discover", PL.discover("widget"), transaction_id=str(uuid.uuid4()))
+    assert net.bap.wait_callback(r.message_id)
+    assert len(calls) == 1, len(calls)

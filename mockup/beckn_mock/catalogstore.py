@@ -5,10 +5,13 @@ Rejects before storing, so a failed publish leaves the store untouched.
 """
 import copy
 import json
+import math
 import time
 from pathlib import Path
 
 from . import spec
+
+_MAX_PRICE = 1e15  # times the BPP's 1e9 quantity cap stays inside Decimal's 28-digit context
 
 
 class CatalogRejected(Exception):
@@ -81,9 +84,9 @@ class CatalogStore:
             price = cons[0].get("considerationAttributes") if cons else None
             ok = (isinstance(price, dict) and isinstance(price.get("currency"), str)
                   and isinstance(price.get("value"), (int, float)) and not isinstance(price.get("value"), bool)
-                  and price["value"] >= 0)
+                  and 0 <= price["value"] <= _MAX_PRICE and math.isfinite(price["value"]))
             if not ok:
-                errs.append(f"{base}.considerations[0] needs considerationAttributes with currency and a numeric value >= 0")
+                errs.append(f"{base}.considerations[0] needs considerationAttributes with currency and a finite numeric value between 0 and 1e15")
         return errs
 
     def _taken_ids(self, exclude):
