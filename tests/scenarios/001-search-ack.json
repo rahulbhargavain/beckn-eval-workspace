@@ -1,0 +1,8 @@
+{
+  "name": "search returns ACK",
+  "spec": "beckn-1.x (UNVERIFIED)",
+  "pending": true,
+  "pendingReason": "fixture and spec version not yet verified",
+  "request": { "method": "POST", "path": "/search", "body": "fixtures/search.json" },
+  "expect": { "status": 200, "jsonpath": { "$.message.ack.status": "ACK" } }
+}
