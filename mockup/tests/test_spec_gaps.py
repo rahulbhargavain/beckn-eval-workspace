@@ -97,3 +97,12 @@ def test_spec_version_is_2_0_0():
     """Not a gap: sanity check that we are reading the v2.0.0 contract."""
     assert spec.SPEC["info"]["version"] == "2.0.0"
     assert spec.component("Context")["properties"]["version"]["const"] == "2.0.0"
+
+
+@pytest.mark.xfail(strict=True, reason="Communication_Protocol FAQ: 'What happens if a PN sends an Ack but then "
+                   "never delivers the promised callback?' is answered 'TBA'; no timeout or redelivery rule exists")
+def test_ack_without_callback_has_defined_behaviour():
+    text = spec.doc_text("Communication_Protocol.md")
+    q = "What happens if a PN sends an Ack but then never delivers the promised callback?"
+    answer = re.sub(r"[\s*.]", "", text.split(q, 1)[1].split("**Q:", 1)[0])
+    assert answer and answer.upper() != "TBA"

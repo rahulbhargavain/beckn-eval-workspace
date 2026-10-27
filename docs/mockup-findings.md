@@ -125,3 +125,10 @@ Other gaps not covered by xfails:
 - **No ISO 8601 duration parser in the stdlib.** A minimal one was written for `ttl`. It rejects years and months, which have no fixed length.
 - **httpx cannot pin the resolved IP.** The SSRF guard resolves and vets the addresses, then httpx resolves again on connect. That leaves a DNS-rebinding TOCTOU window; closing it needs a custom transport or connecting by IP with an SNI override.
 - **Client construction is slow.** Each new httpx client loads the CA bundle (about 0.25 s on this machine). Per-request clients pushed the suite from 97 s to 197 s, so long-lived clients are required.
+
+## Quantities and lost callbacks (added 2026-10-27)
+
+- **Quantity is unconstrained by the core schema.** `Commitment.resources` items are `Resource` plus `required: [id, quantity]`, but `Resource` defines no `quantity` property, so any shape passes. The mockup's earlier integer-only rule was its own. The BPP now accepts positive decimals (at most three places, up to 1e9), prices with `Decimal`, and rounds only the final total half-up to two places. That rounding rule is an assumption; minor-unit rounding is a network decision the spec does not make. `tests/test_quantities.py`.
+- **A lost callback has no specified remedy (spec gap, 10th xfail).** The Communication Protocol FAQ entry "What happens if a PN sends an Ack but then never delivers the promised callback?" is answered "TBA", and there is no callback timeout or redelivery rule. The BPP here makes one delivery attempt and does not retry. `tests/test_lost_callbacks.py` pins what a CN can do today: re-ask with `status` under a new `messageId`, and expect `BIZ_ALREADY_CONFIRMED` if it re-sends `confirm`.
+- **Recovery by `status` needs the full contract.** A bare `{"id": ...}` status request is schema-invalid (S-gap "minimal status request"), so the CN must have kept the last contract it saw, or the recovery request itself is rejected.
+- The fault is injected at the BAP's callback endpoint (503 for chosen actions). No external proxy is needed because v2 has no gateway in the call path.

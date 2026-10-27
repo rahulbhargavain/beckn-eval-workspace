@@ -10,6 +10,7 @@ import asyncio
 import copy
 import json
 import uuid
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 from fastapi import Request
@@ -185,9 +186,29 @@ class BppNode(Node):
     def _price(self, offer):
         return offer["considerations"][0]["considerationAttributes"]
 
+    _MAX_QTY = Decimal(10) ** 9
+    _QTY_STEP = Decimal("0.001")    # at most three decimal places
+    _MONEY_STEP = Decimal("0.01")   # assumption: two minor-unit places, half-up, on the final total only
+
+    def _qty(self, ctx, q):
+        """A positive finite decimal, at most three places, up to 1e9. The core schema leaves
+        quantity unconstrained, so this is the mockup's own rule."""
+        if isinstance(q, bool) or not isinstance(q, (int, float)):
+            raise self._bad(ctx, "BIZ_QUANTITY_UNAVAILABLE", "quantity must be a number")
+        d = Decimal(q) if isinstance(q, int) else Decimal(repr(q))
+        if not d.is_finite() or d <= 0 or d > self._MAX_QTY or d != d.quantize(self._QTY_STEP):
+            raise self._bad(ctx, "BIZ_QUANTITY_UNAVAILABLE",
+                            "quantity must be positive, at most 1e9, with at most three decimal places")
+        return d
+
+    @staticmethod
+    def _num(d):
+        """Decimal -> JSON number: an int when whole, else the shortest float that round-trips."""
+        return int(d) if d == d.to_integral_value() else float(d)
+
     def _quote(self, ctx, commitments):
         """Recompute price from the catalog; never trust client-supplied considerations."""
-        offers, total, out, currency = self._offers(), 0, [], "INR"
+        offers, total, out, currency = self._offers(), Decimal(0), [], "INR"
         for i, cm in enumerate(commitments):
             offer = offers.get(cm["offer"]["id"])
             if not offer:
@@ -196,21 +217,21 @@ class BppNode(Node):
             for r in cm["resources"]:
                 if r["id"] not in offer["resourceIds"]:
                     raise self._bad(ctx, "BIZ_ITEM_NOT_FOUND", f"resource {r['id']} not in offer")
-                q = r.get("quantity", {}).get("unitQuantity", 1) if isinstance(r.get("quantity"), dict) else 1
-                if not isinstance(q, int) or q < 1:
-                    raise self._bad(ctx, "BIZ_QUANTITY_UNAVAILABLE", "quantity must be a positive integer")
+                q = self._qty(ctx, r.get("quantity", {}).get("unitQuantity", 1) if isinstance(r.get("quantity"), dict) else 1)
                 price = self._price(offer)
-                total += price["value"] * q
+                value = price["value"]
+                total += (Decimal(value) if isinstance(value, int) else Decimal(repr(value))) * q
                 currency = price["currency"]
                 unit = (offer.get("offerAttributes") or {}).get("unitCode", "UNIT")
-                res.append({"id": r["id"], "quantity": {"unitQuantity": q, "unitCode": unit}})
+                res.append({"id": r["id"], "quantity": {"unitQuantity": self._num(q), "unitCode": unit}})
             out.append({"id": cm.get("id") or f"commitment-{i + 1}",
                         "status": {"descriptor": {"code": "DRAFT"}}, "resources": res,
                         "offer": {"id": offer["id"], "resourceIds": list(offer["resourceIds"]),
                                   "descriptor": offer.get("descriptor", {})}})
+        total = total.quantize(self._MONEY_STEP, rounding=ROUND_HALF_UP)
         consideration = [{"id": "consideration-1", "status": {"code": "DRAFT"},
                           "considerationAttributes": {"@context": _CTX, "@type": "PriceSpecification",
-                                                      "currency": currency, "value": total}}]
+                                                      "currency": currency, "value": self._num(total)}}]
         return out, consideration
 
     def _owned(self, ctx, contract_id):

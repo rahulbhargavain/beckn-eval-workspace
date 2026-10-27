@@ -1,6 +1,7 @@
 """BAP (Consumer Node): sends signed forward requests, verifies signed Acks, receives
 and verifies on_<action> callbacks (solicited: chained signature; PN-initiated:
 standard signature + known active transaction)."""
+import json
 import threading
 import time
 import uuid
@@ -8,6 +9,7 @@ from dataclasses import dataclass
 
 import httpx
 from fastapi import Request
+from fastapi.responses import Response
 
 from . import signing, spec, urlguard
 from .node import Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, same_url
@@ -44,6 +46,8 @@ class BapNode(Node):
         self.callback_sigs = set()   # (messageId, signature) dedup keys (CON-013-23)
         self.confirmed = {}          # transactionId -> bppId
         self._cv = threading.Condition(self._lock)
+        self.drop_callbacks = set()  # fault injection: on_* actions answered 503 and discarded
+        self.dropped = []            # (action, messageId) discarded by the fault above
         for action in spec.ACTIONS:
             self.app.add_api_route(f"/on_{action}", self._endpoint(action), methods=["POST"])
 
@@ -120,6 +124,13 @@ class BapNode(Node):
             auth = request.headers.get("authorization")
             req_sig = raw_signature(auth)
             mid = None
+            if cb_action in self.drop_callbacks:
+                try:
+                    mid = json.loads(raw).get("context", {}).get("messageId")
+                except (ValueError, AttributeError):
+                    pass
+                self.dropped.append((cb_action, mid))
+                return Response(status_code=503)
             try:
                 # The CN must know which outbound request a chained callback answers before
                 # it can rebuild the signing string, so peek at messageId first.

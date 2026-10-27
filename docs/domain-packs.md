@@ -54,6 +54,7 @@ price from the store and return the offer's `unitCode`. The legacy single-catalo
 
 ## Known limits
 - Only `Intent.textSearch` discovery is implemented.
+- Quantities are decimals with at most three places (see `docs/mockup-findings.md`); no per-offer step or minimum is enforced yet.
 - Delivery-window ordering is unchecked.
 - The price is assumed to live in `considerations[0]`.
 - No inventory or availability.
