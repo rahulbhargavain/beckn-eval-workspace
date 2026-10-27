@@ -1,0 +1,24 @@
+{
+  "id": "NEG-005",
+  "level": "mandatory",
+  "roles": [
+    "BPP"
+  ],
+  "name": "missing message object is rejected",
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Validly signed body without `message`. Schema requires it; 400 Nack.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "missing-message"
+  },
+  "expect": {
+    "status": 400,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": null
+    }
+  }
+}

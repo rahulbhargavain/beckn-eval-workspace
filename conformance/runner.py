@@ -6,6 +6,7 @@ CERTIFIED. The report carries a sha256 digest so the registry can detect edits;
 the digest is NOT a signature. Sign the report with the issuer's key before
 trusting it across organisations.
 """
+import base64
 import hashlib
 import json
 import re
@@ -43,7 +44,10 @@ def load_scenarios(directory):
     return out
 
 
-def _body(req, fixtures_root, identity):
+FAULTS = {"bad-signature", "unknown-participant", "replay", "invalid-json", "missing-message"}
+
+
+def _body(req, fixtures_root, identity, fault):
     body = req.get("body")
     if isinstance(body, str):  # path relative to the fixtures root
         body = json.loads((Path(fixtures_root) / body).read_text(encoding="utf-8"))
@@ -51,18 +55,28 @@ def _body(req, fixtures_root, identity):
         ctx = body.setdefault("context", {})
         ctx.update(bapId=identity["bap_id"], bapUri=identity["bap_uri"],
                    networkId=identity["network_id"], messageId=str(uuid.uuid4()))
+    if fault == "missing-message":
+        body.pop("message", None)
+    if fault == "invalid-json":
+        return b'{"context": {"action": '  # signed over garbage: signature is valid, payload is not
     return None if body is None else json.dumps(body, separators=(",", ":")).encode()
 
 
-def _call(base_url, req, timeout, fixtures_root, identity):
-    signed = req.get("auth") == SIGNED
-    if signed and not identity:
-        raise ValueError("scenario needs a signing identity (none supplied)")
-    data = _body(req, fixtures_root, identity)
-    headers = {"Content-Type": "application/json", **req.get("headers", {})}
-    if signed:
-        from . import signing
-        headers["Authorization"] = signing.authorization(identity, data)
+def _flip_signature(auth):
+    m = re.search(r'signature="([^"]+)"', auth)
+    raw = bytearray(base64.b64decode(m.group(1)))
+    raw[0] ^= 0x01
+    return auth[:m.start(1)] + base64.b64encode(bytes(raw)).decode() + auth[m.end(1):]
+
+
+def _unknown_identity(identity):
+    from nacl.signing import SigningKey
+    name = f"unregistered-{uuid.uuid4().hex[:8]}.invalid"
+    return dict(identity, key_id=f"{name}/keys/k1|ed25519", bap_id=name,
+                private_key_seed_b64=base64.b64encode(bytes(SigningKey.generate())).decode())
+
+
+def _send(base_url, req, data, headers, timeout):
     r = urllib.request.Request(base_url + req["path"], data=data, headers=headers,
                                method=req.get("method", "POST"))
     try:
@@ -70,6 +84,35 @@ def _call(base_url, req, timeout, fixtures_root, identity):
             return resp.status, resp.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
+
+
+def _call(base_url, req, timeout, fixtures_root, identity):
+    signed = req.get("auth") == SIGNED
+    fault = req.get("fault")
+    if fault and fault not in FAULTS:
+        raise ValueError(f"unknown fault {fault!r}")
+    if fault and not signed:
+        raise ValueError("fault scenarios must use auth beckn-http-signature")
+    if signed and not identity:
+        raise ValueError("scenario needs a signing identity (none supplied)")
+    if fault == "unknown-participant":
+        identity = _unknown_identity(identity)
+    data = _body(req, fixtures_root, identity, fault)
+    headers = {"Content-Type": "application/json", **req.get("headers", {})}
+
+    def sign():
+        if signed:
+            from . import signing
+            auth = signing.authorization(identity, data)
+            headers["Authorization"] = _flip_signature(auth) if fault == "bad-signature" else auth
+
+    sign()
+    if fault == "replay":
+        status, _ = _send(base_url, req, data, headers, timeout)
+        if status != 200:
+            raise ValueError(f"precondition failed: first request answered {status}, replay test is void")
+        sign()  # fresh signature over the identical body: tests messageId dedupe, not header reuse
+    return _send(base_url, req, data, headers, timeout)
 
 
 def _check(s, base_url, timeout, fixtures_root, identity):

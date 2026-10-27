@@ -15,6 +15,6 @@ registering keys/endpoints.
 - Test endpoints are exercised, but there is no proof the production endpoint behaves the same; add periodic re-certification and sampled production probes.
 - Only HTTP status and JSONPath-lite are asserted. Schema validation, signature-verification negative tests, replay and SSRF scenarios still have to be added as mandatory scenarios (the mockup agent's tests are the source).
 - Scenario files lacking `id` are ignored by the loader.
-- Only `DISC-001` exists. Signed negative tests (bad signature, replay, unknown participant), schema checks and SSRF still need scenarios; the mockup tests are the source.
+- Scenarios: `DISC-001` plus `NEG-001..005` (bad signature, unknown participant, replay, invalid JSON, missing `message`), selected with `request.fault`. A permissive server fails them (covered by tests). Statuses: 401 for the two auth faults is partly an assumption (spec fixes 400 only for replay, 10.1). Still missing: schema-level negatives, SSRF via bapUri, expiry/skew, impersonation (signer not matching bapId), and the other lifecycle actions.
 - Callback (`on_*`) behaviour is untested: the runner has no receiver endpoint to catch async callbacks yet.
 - A BAP is only tested as a caller indirectly; BAP role scenarios need a test-bed that drives it.

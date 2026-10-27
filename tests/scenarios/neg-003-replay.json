@@ -1,0 +1,24 @@
+{
+  "id": "NEG-003",
+  "level": "mandatory",
+  "roles": [
+    "BPP"
+  ],
+  "name": "replayed messageId is rejected",
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "First send must be 200 (precondition). Same body re-sent with a fresh signature MUST be rejected: Authentication_and_Trust.md 10.1 requires `400 NackBadRequest`. The replay window is undefined in the spec (see docs/mockup-findings.md S3), so the immediate replay is the only portable test.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "replay"
+  },
+  "expect": {
+    "status": 400,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": null
+    }
+  }
+}
