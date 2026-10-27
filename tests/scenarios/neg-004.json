@@ -1,0 +1,38 @@
+{
+  "id": "NEG-004",
+  "name": "DS: invalid-json is rejected",
+  "level": "mandatory",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Validly signed, truncated JSON. beckn.yaml ErrorCode SCH_INVALID_JSON; 400 NackBadRequest. No messageId can be echoed.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "invalid-json"
+  },
+  "expect": {
+    "status": 400,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "SCH_INVALID_JSON"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}

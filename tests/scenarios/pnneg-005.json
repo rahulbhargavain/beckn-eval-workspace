@@ -1,0 +1,45 @@
+{
+  "id": "PNNEG-005",
+  "name": "PN: replayed messageId is rejected on /select",
+  "level": "recommended",
+  "roles": [
+    "BPP"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Needs a select that the PN accepts the first time, which depends on the PN's catalog; a portable fixture does not exist yet.",
+  "request": {
+    "method": "POST",
+    "path": "/select",
+    "body": "fixtures/select.json",
+    "auth": "beckn-http-signature",
+    "fault": "replay"
+  },
+  "expect": {
+    "status": 400,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "CTX_MESSAGE_ID_DUPLICATE",
+          "AUT_REPLAY_DETECTED"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      },
+      "$.message.messageId": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  },
+  "pending": true,
+  "pendingReason": "requires a catalog-specific valid select fixture supplied by the participant"
+}

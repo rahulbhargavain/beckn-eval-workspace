@@ -1,0 +1,42 @@
+{
+  "id": "NEG-001",
+  "name": "DS: bad-signature is rejected",
+  "level": "mandatory",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "One bit of the Ed25519 signature is flipped. docs/Authentication_and_Trust.md 8 (verification, any failure -> 401) and CON-004-08; beckn.yaml NackUnauthorized.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "bad-signature"
+  },
+  "expect": {
+    "status": 401,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "AUT_SIGNATURE_INVALID"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      },
+      "$.message.messageId": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}

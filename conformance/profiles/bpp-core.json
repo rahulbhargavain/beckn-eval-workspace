@@ -1,1 +1,11 @@
-{"name": "bpp-core", "spec": "beckn-2.0.0", "role": "BPP"}
+{
+  "name": "bpp-core",
+  "spec": "beckn-2.0.0",
+  "role": "BPP",
+  "required": {
+    "PNNEG-001": "67f61c453266fca769b3d04702ae4350a0bfb90f620d3a15ab0f653ca5577263",
+    "PNNEG-002": "416679dc659d1c9b4362697061a06f8c7ad36fa6a7ea817bf9403a9c9bc895a6",
+    "PNNEG-003": "b2dd307d79553838642b79badbec7fe1c2007e204975153f5157c41e99730a17",
+    "PNNEG-004": "15c8e50dc812d9d3f0246feadc34cd34225f60d5d1fca8eab4b140828bdd764f"
+  }
+}

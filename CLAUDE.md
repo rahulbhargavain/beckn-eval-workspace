@@ -19,7 +19,7 @@ Read [MEMORY.md](MEMORY.md) first: it holds the domain background and decisions 
 - `scripts/` runners (`scripts/test.ps1`; add a stack-specific unit-test command here once a stack is chosen)
 
 ## Commands
-- `pwsh scripts/test.ps1 -BaseUrl http://localhost:8080` runs all scenarios against a running adapter (runner is a stub until a stack is picked).
+- `pwsh scripts/test.ps1 -BaseUrl http://localhost:8080 -Participant me -Identity id.json` runs all scenarios against a running adapter (see `docs/conformance.md`; needs the mockup venv or PyNaCl).
 
 ## Evaluation criteria (apply to any stack)
 1. Spec conformance: full transaction lifecycle (discover → select → init → confirm → status/track/update/cancel/rating/support), async callback model.

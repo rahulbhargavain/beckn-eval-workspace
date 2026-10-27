@@ -1,0 +1,43 @@
+{
+  "id": "NEG-003",
+  "name": "DS: replay is rejected",
+  "level": "mandatory",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "First send must be accepted (200/202). Same body, same messageId, re-sent one second later with a different Authorization header: docs/Authentication_and_Trust.md 10.1 requires `400 NackBadRequest`. Does not distinguish messageId dedupe from body-hash dedupe; see NEG-006.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "replay"
+  },
+  "expect": {
+    "status": 400,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "CTX_MESSAGE_ID_DUPLICATE",
+          "AUT_REPLAY_DETECTED"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      },
+      "$.message.messageId": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}

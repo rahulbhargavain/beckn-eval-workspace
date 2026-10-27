@@ -2,3 +2,6 @@ node_modules/
 .env
 *.log
 vendor/
+*identity*.json
+*issuer*.json
+report*.json

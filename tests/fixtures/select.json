@@ -1,0 +1,42 @@
+{
+  "context": {
+    "networkId": "example.org/sample-net",
+    "action": "select",
+    "version": "2.0.0",
+    "bapId": "bap.example.org",
+    "bapUri": "https://bap.example.org/beckn",
+    "bppId": "bpp.example.org",
+    "bppUri": "https://bpp.example.org/beckn",
+    "transactionId": "3f8a2b1c-6d4e-4f0a-9b7c-1e2d3c4b5a61",
+    "messageId": "9c1d2e3f-4a5b-4c6d-8e7f-0a1b2c3d4e60"
+  },
+  "message": {
+    "contract": {
+      "commitments": [
+        {
+          "id": "commitment-1",
+          "status": {
+            "descriptor": {
+              "code": "DRAFT"
+            }
+          },
+          "resources": [
+            {
+              "id": "res-conformance-1",
+              "quantity": {
+                "unitQuantity": 1,
+                "unitCode": "UNIT"
+              }
+            }
+          ],
+          "offer": {
+            "id": "offer-conformance-1",
+            "resourceIds": [
+              "res-conformance-1"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

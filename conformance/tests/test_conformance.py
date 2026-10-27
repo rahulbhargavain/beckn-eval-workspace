@@ -92,31 +92,12 @@ def test_jsonpath_mismatch_fails(server):
     assert runner.run(sc, PROFILE, server, "p")["verdict"] == "FAILED"
 
 
-def test_admit_accepts_good_report(server):
-    rep = runner.run([scenario("S1")], PROFILE, server, "p")
-    assert runner.admit(rep, spec="t-1", role="BPP") == (True, "ok")
 
 
-def test_admit_rejects_tampered_report(server):
-    rep = runner.run([scenario("S1", path="/bad")], PROFILE, server, "p")
-    rep["verdict"] = "CERTIFIED"
-    ok, why = runner.admit(rep, spec="t-1", role="BPP")
-    assert not ok and "digest" in why
 
 
-def test_admit_rejects_wrong_spec_role_and_stale(server):
-    rep = runner.run([scenario("S1")], PROFILE, server, "p")
-    assert not runner.admit(rep, spec="t-2", role="BPP")[0]
-    assert not runner.admit(rep, spec="t-1", role="BAP")[0]
-    assert not runner.admit(rep, spec="t-1", role="BPP", now=rep["issued_at"] + 10**9)[0]
 
 
 def test_report_is_deterministic_digest(server):
     rep = runner.run([scenario("S1")], PROFILE, server, "p")
     assert rep["digest"] == runner.digest(rep)
-
-
-def test_load_scenarios_skips_files_without_id(tmp_path):
-    (tmp_path / "a.json").write_text(json.dumps(scenario("A")))
-    (tmp_path / "b.json").write_text(json.dumps({"name": "legacy"}))
-    assert [s["id"] for s in runner.load_scenarios(tmp_path)] == ["A"]

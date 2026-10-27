@@ -112,4 +112,4 @@ def test_identity_secret_never_in_report(server, tmp_path):
 
 def test_real_scenario_001_is_loadable_and_mandatory():
     ids = {s["id"]: s for s in runner.load_scenarios(runner.DEFAULT_SCENARIOS)}
-    assert ids["DISC-001"]["level"] == "mandatory" and "BPP" in ids["DISC-001"]["roles"]
+    assert ids["DISC-001"]["level"] == "mandatory" and "DS" in ids["DISC-001"]["roles"]

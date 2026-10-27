@@ -1,0 +1,43 @@
+{
+  "id": "NEG-002",
+  "name": "DS: unknown-participant is rejected",
+  "level": "mandatory",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Valid signature by a fresh key under an unregistered subscriber. docs/Authentication_and_Trust.md:208 (failed key lookup -> reject with 401) and 8 step 4. Implicit keyIds make a spec-literal verifier query fabric.nfh.global during this test (network egress).",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "unknown-participant"
+  },
+  "expect": {
+    "status": 401,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "AUT_SUBSCRIBER_NOT_FOUND",
+          "AUT_KEY_NOT_FOUND"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      },
+      "$.message.messageId": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}

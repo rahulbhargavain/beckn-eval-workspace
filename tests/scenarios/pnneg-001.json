@@ -1,0 +1,42 @@
+{
+  "id": "PNNEG-001",
+  "name": "PN: bad-signature is rejected on /select",
+  "level": "mandatory",
+  "roles": [
+    "BPP"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Same fault as the DS scenario but on a PN action (select, beckn.yaml:235), so authentication is proven on the node that owns the lifecycle. The select body only needs to be well-formed: all faults are rejected before business processing.",
+  "request": {
+    "method": "POST",
+    "path": "/select",
+    "body": "fixtures/select.json",
+    "auth": "beckn-http-signature",
+    "fault": "bad-signature"
+  },
+  "expect": {
+    "status": 401,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "AUT_SIGNATURE_INVALID"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      },
+      "$.message.messageId": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}

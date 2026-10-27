@@ -1,0 +1,44 @@
+{
+  "id": "NEG-005",
+  "name": "DS: missing-message is rejected",
+  "level": "mandatory",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "Validly signed body without `message` (beckn.yaml discover request requires context and message).",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature",
+    "fault": "missing-message"
+  },
+  "expect": {
+    "status": 400,
+    "jsonpath": {
+      "$.message.status": "NACK",
+      "$.message.error.code": {
+        "type": "string",
+        "enum": [
+          "SCH_REQUIRED_FIELD_MISSING",
+          "SCH_SCHEMA_VALIDATION_FAILED",
+          "CTX_MISSING_FIELD"
+        ]
+      },
+      "$.message.error.message": {
+        "type": "string",
+        "pattern": "."
+      },
+      "$.message.messageId": {
+        "type": "string",
+        "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      }
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}

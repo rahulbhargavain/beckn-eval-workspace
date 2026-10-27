@@ -91,10 +91,10 @@ def neg(tmp_path, fault, status):
     return {"id": "N-" + fault, "level": "mandatory", "roles": ["BPP"], "spec": "t",
             "request": {"method": "POST", "path": "/discover", "body": "b.json",
                         "auth": "beckn-http-signature", "fault": fault},
-            "expect": {"status": status, "jsonpath": {"$.message.status": "NACK", "$.message.error.code": None}}}
+            "expect": {"status": status, "jsonpath": {"$.message.status": "NACK", "$.message.error.code": {"type": "string"}}}}
 
 
-CASES = [("bad-signature", 401), ("unknown-participant", 401), ("replay", 400),
+CASES = [("bad-signature", 401), ("unknown-participant", 401), ("replay", 400), ("replay-new-body", 400),
          ("invalid-json", 400), ("missing-message", 400)]
 
 
@@ -117,12 +117,13 @@ def test_replay_requires_first_request_accepted(strict, tmp_path):
     assert rep["verdict"] == "FAILED" and "precondition" in rep["results"][0]["detail"]
 
 
-def test_unknown_fault_name_fails(strict, tmp_path):
-    rep = runner.run([neg(tmp_path, "nonsense", 400)], PROFILE, strict, "p", fixtures_root=tmp_path, identity=IDENT)
-    assert rep["verdict"] == "FAILED" and "fault" in rep["results"][0]["detail"]
+def test_unknown_fault_name_is_a_scenario_error(strict, tmp_path):
+    with pytest.raises(runner.ScenarioError):
+        runner.run([neg(tmp_path, "nonsense", 400)], PROFILE, strict, "p", fixtures_root=tmp_path, identity=IDENT)
 
 
 def test_repo_negative_scenarios_exist_and_are_mandatory():
     s = {x["id"]: x for x in runner.load_scenarios(runner.DEFAULT_SCENARIOS)}
-    for sid in ("NEG-001", "NEG-002", "NEG-003", "NEG-004", "NEG-005"):
+    for sid in ("NEG-001", "NEG-002", "NEG-003", "NEG-004", "NEG-005", "NEG-006",
+                "PNNEG-001", "PNNEG-002", "PNNEG-003", "PNNEG-004"):
         assert s[sid]["level"] == "mandatory" and s[sid]["request"]["fault"]

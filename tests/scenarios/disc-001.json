@@ -1,0 +1,31 @@
+{
+  "id": "DISC-001",
+  "name": "discover is acknowledged",
+  "level": "mandatory",
+  "roles": [
+    "DS"
+  ],
+  "spec": "beckn-2.0.0 (protocol-specifications-v2 @ a22300a)",
+  "notes": "v2 sends discover to the Discovery Service, not the PN (beckn.yaml:131, Communication_Protocol.md:131). Signed per docs/Authentication_and_Trust.md 4; context.bapId/bapUri/networkId/messageId are templated by the runner. Response must echo messageId (beckn.yaml Ack) and carry the signed Signature header (beckn.yaml AckSignatureHeader, required). 202 AckNoCallback (no results) is also conformant, handled below.",
+  "request": {
+    "method": "POST",
+    "path": "/discover",
+    "body": "fixtures/search.json",
+    "auth": "beckn-http-signature"
+  },
+  "expect": {
+    "status_in": [
+      200,
+      202
+    ],
+    "jsonpath": {
+      "$.message.status": "ACK",
+      "$.message.messageId": "{{request.context.messageId}}"
+    },
+    "headers": {
+      "Signature": {
+        "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
+      }
+    }
+  }
+}
