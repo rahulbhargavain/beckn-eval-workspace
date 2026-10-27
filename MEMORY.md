@@ -25,3 +25,7 @@ Open Commerce / ONDC profile (Beckn-based, India), Shopify/UCP-style or ACP agen
 - Local-only evaluation, or against a public sandbox/registry? (Spec hard-codes `fabric.nfh.global` for implicit keyIds; local testing needs a registry override.)
 - Harness signing is done (`conformance/signing.py`); a real network still needs the harness identity registered, and a local registry override for `fabric.nfh.global`.
 - Spec contradictions to raise upstream or pin a stance on (callback replay rules, digest prefix, Context required fields): see docs/mockup-findings.md.
+
+## Domain packs (added 2026-10-27)
+- `packs/` holds workspace-owned, experimental schema packs (agri-produce, energy-der, tourism-listing, pricing-core); contexts under `packs.beckn-eval.invalid`. UNVERIFIED against upstream beckn/schemas and beckn/DEG. See docs/domain-packs.md.
+- BPP serves a multi-catalog `CatalogStore` (mockup/beckn_mock/catalogstore.py); only `textSearch` discovery is implemented.

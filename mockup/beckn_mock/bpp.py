@@ -15,6 +15,8 @@ from pathlib import Path
 from fastapi import Request
 
 from . import signing, spec, urlguard
+from .catalogstore import CatalogStore
+from .packs import PackRegistry
 from .node import (Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, same_url)
 
 DEFAULT_CATALOG = Path(__file__).with_name("catalog.json")
@@ -25,10 +27,13 @@ class BppNode(Node):
     http_follows_redirects = False
 
     def __init__(self, identity: Identity, registry_url, network_id, trusted_registries=(),
-                 callback_allowlist=None, catalog_path=DEFAULT_CATALOG, callback_delay=0.05):
+                 callback_allowlist=None, catalog_path=DEFAULT_CATALOG, callback_delay=0.05, store=None):
         super().__init__(identity, registry_url, network_id, trusted_registries)
         self.callback_allowlist = callback_allowlist
-        self.catalog = json.loads(Path(catalog_path).read_text(encoding="utf-8"))
+        if store is None:  # legacy single mock catalog: its mock/v1 context is not a pack, so non-strict
+            store = CatalogStore(PackRegistry([], strict=False))
+            store.publish(json.loads(Path(catalog_path).read_text(encoding="utf-8")))
+        self.store = store
         self.callback_delay = callback_delay
         self.contracts = {}       # contract id -> contract (authoritative PN view)
         self.owners = {}          # contract id -> (bapId, transactionId)
@@ -175,7 +180,7 @@ class BppNode(Node):
         return Reject(400, code, text, ctx["messageId"])
 
     def _offers(self):
-        return {o["id"]: o for o in self.catalog["offers"]}
+        return self.store.offer_index()
 
     def _price(self, offer):
         return offer["considerations"][0]["considerationAttributes"]
@@ -197,7 +202,8 @@ class BppNode(Node):
                 price = self._price(offer)
                 total += price["value"] * q
                 currency = price["currency"]
-                res.append({"id": r["id"], "quantity": {"unitQuantity": q, "unitCode": "UNIT"}})
+                unit = (offer.get("offerAttributes") or {}).get("unitCode", "UNIT")
+                res.append({"id": r["id"], "quantity": {"unitQuantity": q, "unitCode": unit}})
             out.append({"id": cm.get("id") or f"commitment-{i + 1}",
                         "status": {"descriptor": {"code": "DRAFT"}}, "resources": res,
                         "offer": {"id": offer["id"], "resourceIds": list(offer["resourceIds"]),
@@ -214,17 +220,10 @@ class BppNode(Node):
 
     # discover (DS role)
     def _on_discover(self, ctx, msg):
-        text = (msg["intent"].get("textSearch") or "").lower()
-        resources = [r for r in self.catalog["resources"]
-                     if not text or any(text in (r.get("descriptor", {}).get(k) or "").lower()
-                                        for k in ("name", "shortDesc", "longDesc"))]
-        if not resources:
+        found = self.store.search(msg["intent"].get("textSearch"))
+        if not found:
             return None
-        ids = {r["id"] for r in resources}
-        offers = [o for o in self.catalog["offers"] if ids & set(o["resourceIds"])]
-        cat = dict(copy.deepcopy(self.catalog), resources=resources, offers=offers,
-                   bppId=self.subscriber_id, bppUri=self.identity.url)
-        return {"catalogs": [cat]}, None
+        return {"catalogs": [dict(c, bppId=self.subscriber_id, bppUri=self.identity.url) for c in found]}, None
 
     def _on_select(self, ctx, msg):
         commitments, consideration = self._quote(ctx, msg["contract"]["commitments"])

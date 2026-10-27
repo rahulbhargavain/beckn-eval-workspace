@@ -1,0 +1,36 @@
+{
+  "valid": [
+    {
+      "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+      "@type": "PriceSpecification",
+      "currency": "INR",
+      "value": 120
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+      "@type": "PriceSpecification",
+      "currency": "INR",
+      "value": 0
+    }
+  ],
+  "invalid": [
+    {
+      "reason": "negative price",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+        "@type": "PriceSpecification",
+        "currency": "INR",
+        "value": -1
+      }
+    },
+    {
+      "reason": "currency not ISO 4217 shaped",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+        "@type": "PriceSpecification",
+        "currency": "rupees",
+        "value": 5
+      }
+    }
+  ]
+}

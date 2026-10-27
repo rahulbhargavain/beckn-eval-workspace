@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type",
+    "commodity",
+    "originCountry"
+  ],
+  "properties": {
+    "@context": {
+      "type": "string"
+    },
+    "@type": {
+      "type": "string"
+    },
+    "commodity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "originCountry": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "harvestDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "grade": {
+      "type": "string"
+    },
+    "certifications": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

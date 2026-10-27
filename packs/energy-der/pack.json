@@ -1,0 +1,11 @@
+{
+  "name": "energy-der",
+  "version": "0.1.0",
+  "status": "experimental",
+  "context": "https://packs.beckn-eval.invalid/energy/v1",
+  "note": "Illustrative, workspace-owned; not an upstream Beckn schema (UNVERIFIED against beckn/schemas, beckn/DEG). Energy trade needs metering and settlement terms; the settlement model is not defined here.",
+  "types": {
+    "EnergySource": "energysource.schema.json",
+    "EnergyOffer": "energyoffer.schema.json"
+  }
+}

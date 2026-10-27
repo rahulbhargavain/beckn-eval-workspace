@@ -1,0 +1,54 @@
+{
+  "valid": [
+    {
+      "@context": "https://packs.beckn-eval.invalid/energy/v1",
+      "@type": "EnergySource",
+      "sourceType": "solar",
+      "capacityKw": 5.5,
+      "meterId": "MTR-0001"
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/energy/v1",
+      "@type": "EnergyOffer",
+      "unitCode": "KWH",
+      "deliveryWindow": {
+        "start": "2026-11-01T09:00:00Z",
+        "end": "2026-11-01T15:00:00Z"
+      },
+      "minQuantityKwh": 2
+    }
+  ],
+  "invalid": [
+    {
+      "reason": "capacity must be positive",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergySource",
+        "sourceType": "solar",
+        "capacityKw": 0,
+        "meterId": "M1"
+      }
+    },
+    {
+      "reason": "meterId is required for settlement",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergySource",
+        "sourceType": "wind",
+        "capacityKw": 3
+      }
+    },
+    {
+      "reason": "unit must be kWh",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergyOffer",
+        "unitCode": "MWH",
+        "deliveryWindow": {
+          "start": "2026-11-01T09:00:00Z",
+          "end": "2026-11-01T10:00:00Z"
+        }
+      }
+    }
+  ]
+}

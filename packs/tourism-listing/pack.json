@@ -1,0 +1,11 @@
+{
+  "name": "tourism-listing",
+  "version": "0.1.0",
+  "status": "experimental",
+  "context": "https://packs.beckn-eval.invalid/tourism/v1",
+  "note": "Illustrative, workspace-owned; not an upstream Beckn schema (UNVERIFIED against beckn/schemas, beckn/DEG). ",
+  "types": {
+    "Listing": "listing.schema.json",
+    "ListingOffer": "listingoffer.schema.json"
+  }
+}

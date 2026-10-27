@@ -1,0 +1,107 @@
+{
+  "id": "catalog-energy-001",
+  "descriptor": {
+    "name": "Prosumer energy catalog",
+    "shortDesc": "Surplus distributed generation"
+  },
+  "provider": {
+    "id": "provider-energy-001",
+    "descriptor": {
+      "name": "Sample Rooftop Prosumer",
+      "shortDesc": "Illustrative provider"
+    }
+  },
+  "resources": [
+    {
+      "id": "res-energy-solar",
+      "descriptor": {
+        "name": "Solar rooftop export",
+        "shortDesc": "Surplus daytime generation"
+      },
+      "resourceAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergySource",
+        "sourceType": "solar",
+        "capacityKw": 5.5,
+        "meterId": "MTR-0001"
+      }
+    },
+    {
+      "id": "res-energy-battery",
+      "descriptor": {
+        "name": "Home battery discharge",
+        "shortDesc": "Evening dispatch"
+      },
+      "resourceAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergySource",
+        "sourceType": "battery",
+        "capacityKw": 3,
+        "meterId": "MTR-0002"
+      }
+    }
+  ],
+  "offers": [
+    {
+      "id": "offer-energy-solar",
+      "descriptor": {
+        "name": "Solar per kWh",
+        "shortDesc": "Price per kilowatt-hour"
+      },
+      "resourceIds": [
+        "res-energy-solar"
+      ],
+      "offerAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergyOffer",
+        "unitCode": "KWH",
+        "deliveryWindow": {
+          "start": "2026-11-01T09:00:00Z",
+          "end": "2026-11-01T15:00:00Z"
+        },
+        "minQuantityKwh": 1
+      },
+      "considerations": [
+        {
+          "id": "price-energy-solar",
+          "considerationAttributes": {
+            "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+            "@type": "PriceSpecification",
+            "currency": "INR",
+            "value": 6
+          }
+        }
+      ]
+    },
+    {
+      "id": "offer-energy-battery",
+      "descriptor": {
+        "name": "Battery per kWh",
+        "shortDesc": "Price per kilowatt-hour"
+      },
+      "resourceIds": [
+        "res-energy-battery"
+      ],
+      "offerAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/energy/v1",
+        "@type": "EnergyOffer",
+        "unitCode": "KWH",
+        "deliveryWindow": {
+          "start": "2026-11-01T18:00:00Z",
+          "end": "2026-11-01T22:00:00Z"
+        }
+      },
+      "considerations": [
+        {
+          "id": "price-energy-battery",
+          "considerationAttributes": {
+            "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+            "@type": "PriceSpecification",
+            "currency": "INR",
+            "value": 9
+          }
+        }
+      ]
+    }
+  ]
+}

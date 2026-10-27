@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "@context",
+    "@type",
+    "category",
+    "locationName",
+    "countryCode",
+    "capacity"
+  ],
+  "properties": {
+    "@context": {
+      "type": "string"
+    },
+    "@type": {
+      "type": "string"
+    },
+    "category": {
+      "enum": [
+        "stay",
+        "tour",
+        "experience",
+        "transport"
+      ]
+    },
+    "locationName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "countryCode": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "capacity": {
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

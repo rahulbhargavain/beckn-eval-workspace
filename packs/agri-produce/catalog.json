@@ -1,0 +1,100 @@
+{
+  "id": "catalog-agri-001",
+  "descriptor": {
+    "name": "Farm produce catalog",
+    "shortDesc": "Staples direct from growers"
+  },
+  "provider": {
+    "id": "provider-agri-001",
+    "descriptor": {
+      "name": "Sample Growers Cooperative",
+      "shortDesc": "Illustrative provider"
+    }
+  },
+  "resources": [
+    {
+      "id": "res-agri-rice",
+      "descriptor": {
+        "name": "Basmati rice",
+        "shortDesc": "Aged long grain"
+      },
+      "resourceAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/agri/v1",
+        "@type": "Produce",
+        "commodity": "basmati rice",
+        "originCountry": "IN",
+        "harvestDate": "2026-10-01",
+        "grade": "A"
+      }
+    },
+    {
+      "id": "res-agri-turmeric",
+      "descriptor": {
+        "name": "Turmeric",
+        "shortDesc": "Whole dried fingers"
+      },
+      "resourceAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/agri/v1",
+        "@type": "Produce",
+        "commodity": "turmeric",
+        "originCountry": "IN"
+      }
+    }
+  ],
+  "offers": [
+    {
+      "id": "offer-agri-rice",
+      "descriptor": {
+        "name": "Basmati rice per kg",
+        "shortDesc": "Price per kilogram"
+      },
+      "resourceIds": [
+        "res-agri-rice"
+      ],
+      "offerAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/agri/v1",
+        "@type": "ProduceOffer",
+        "unitCode": "KGM",
+        "minOrderQuantity": 1,
+        "deliveryLeadDays": 3
+      },
+      "considerations": [
+        {
+          "id": "price-agri-rice",
+          "considerationAttributes": {
+            "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+            "@type": "PriceSpecification",
+            "currency": "INR",
+            "value": 95
+          }
+        }
+      ]
+    },
+    {
+      "id": "offer-agri-turmeric",
+      "descriptor": {
+        "name": "Turmeric per kg",
+        "shortDesc": "Price per kilogram"
+      },
+      "resourceIds": [
+        "res-agri-turmeric"
+      ],
+      "offerAttributes": {
+        "@context": "https://packs.beckn-eval.invalid/agri/v1",
+        "@type": "ProduceOffer",
+        "unitCode": "KGM"
+      },
+      "considerations": [
+        {
+          "id": "price-agri-turmeric",
+          "considerationAttributes": {
+            "@context": "https://packs.beckn-eval.invalid/pricing/v1",
+            "@type": "PriceSpecification",
+            "currency": "INR",
+            "value": 180
+          }
+        }
+      ]
+    }
+  ]
+}
