@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-RUNNER_VERSION = "2"
+RUNNER_VERSION = "3"
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SCENARIOS = ROOT / "tests" / "scenarios"
 DEFAULT_FIXTURES = ROOT / "tests"
@@ -33,7 +33,7 @@ FAULTS = {"bad-signature", "unknown-participant", "replay", "replay-new-body", "
           "missing-message"}
 SCENARIO_KEYS = {"id", "level", "roles", "spec", "name", "notes", "pending", "pendingReason", "request", "expect"}
 REQUEST_KEYS = {"method", "path", "body", "auth", "fault", "headers"}
-EXPECT_KEYS = {"status", "status_in", "jsonpath", "headers"}
+EXPECT_KEYS = {"status", "status_in", "jsonpath", "headers", "response_signature"}
 OPERATORS = {"exists", "type", "enum", "pattern"}
 TYPES = {"string", "number", "integer", "boolean", "null", "object", "array"}
 
@@ -182,6 +182,11 @@ def validate_scenario(s):
     for h, want in (exp.get("headers") or {}).items():
         if not _is_operator(want):
             bad(f"header {h} needs an operator object")
+    if "response_signature" in exp:
+        if exp["response_signature"] != {"chain": True}:
+            bad('response_signature must be exactly {"chain": true}')
+        if req.get("auth") != SIGNED:
+            bad("response_signature needs a signed request (there is no request signature to chain to)")
     return s
 
 
@@ -279,7 +284,7 @@ def _send(url, method, data, headers, timeout):
 
 
 def _call(base_url, req, timeout, fixtures_root, identity):
-    """Returns (status, response headers, body bytes, sent context)."""
+    """Returns (status, response headers, body bytes, sent context, Authorization header of the last request)."""
     signed, fault = req.get("auth") == SIGNED, req.get("fault")
     parts = urlsplit(base_url)
     if parts.scheme not in ("http", "https") or not parts.netloc:
@@ -317,7 +322,7 @@ def _call(base_url, req, timeout, fixtures_root, identity):
             data = _dumps(doc)
         sign(data, t0 + 1)  # different created second => different Authorization header on a byte-identical body
     status, rh, raw = _send(url, method, data, headers, timeout)
-    return status, rh, raw, ctx
+    return status, rh, raw, ctx, headers.get("Authorization")
 
 
 def _expected(want, ctx):
@@ -328,9 +333,9 @@ def _expected(want, ctx):
     return want
 
 
-def _check(s, base_url, timeout, fixtures_root, identity):
+def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None):
     try:
-        status, rh, raw, ctx = _call(base_url, s["request"], timeout, fixtures_root, identity)
+        status, rh, raw, ctx, sent_auth = _call(base_url, s["request"], timeout, fixtures_root, identity)
     except Exception as e:  # unreachable, timeout, TLS failure, missing identity, precondition...
         return False, f"request error: {_short(str(e), 200)}"
     exp = s["expect"]
@@ -354,6 +359,12 @@ def _check(s, base_url, timeout, fixtures_root, identity):
             ok = op_match(got, want) if _is_operator(want) else (got is not MISSING and values_match(got, want))
             if not ok:
                 return False, f"{p}: got {_short(None if got is MISSING else got)}, want {_short(want)}"
+    if exp.get("response_signature"):
+        from . import signing
+        try:
+            signing.check_response(rh, raw, sent_auth, sut_keys)
+        except signing.ResponseSignatureError as e:
+            return False, f"response Signature: {e}"
     return True, ""
 
 
@@ -388,7 +399,7 @@ def plan(scenarios, profile, base_url, only=None):
 
 
 def run(scenarios, profile, base_url, participant, timeout=10, now=None,
-        fixtures_root=DEFAULT_FIXTURES, identity=None, issuer=None, allow_hosts=None, delay=0, only=None):
+        fixtures_root=DEFAULT_FIXTURES, identity=None, issuer=None, allow_hosts=None, delay=0, only=None, sut_keys=None):
     check_target(base_url, allow_hosts)
     for s in scenarios:
         validate_scenario(s)
@@ -415,7 +426,7 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
             results.append({"id": s["id"], "level": s["level"], "outcome": "pending"})
             mand_pending |= mandatory
             continue
-        ok, why = _check(s, base_url, timeout, fixtures_root, identity)
+        ok, why = _check(s, base_url, timeout, fixtures_root, identity, sut_keys)
         results.append({"id": s["id"], "level": s["level"], "outcome": "pass" if ok else "fail", "detail": why})
         if not ok:
             if mandatory:
@@ -489,6 +500,8 @@ if __name__ == "__main__":
     ap.add_argument("--identity", help="JSON file: key_id, private_key_seed_b64, bap_id, bap_uri, network_id")
     ap.add_argument("--issuer-key", help="operator JSON file: key_id, private_key_seed_b64 (signs the report)")
     ap.add_argument("--allow-host", action="append", default=[], help="exact remote host allowed (https only); repeatable")
+    ap.add_argument("--sut-key", action="append", default=[], metavar="KEYID=BASE64_PUBLIC_KEY",
+                    help="trusted public key of the system under test, to verify its response Signature; repeatable")
     ap.add_argument("--delay", type=float, default=0, help="seconds to wait between scenarios")
     ap.add_argument("--only", action="append", help="run only this scenario id (probe, never certifiable); repeatable")
     ap.add_argument("--dry-run", action="store_true", help="print the request plan and exit without any network access")
@@ -506,7 +519,13 @@ if __name__ == "__main__":
         check_target(a.base_url, a.allow_host)
         print(json.dumps(plan(scenarios, profile, a.base_url, set(a.only or [])), indent=2))
         raise SystemExit(0)
-    rep = run(scenarios, profile, a.base_url, a.participant,
+    sut_keys = {}
+    for kv in a.sut_key:
+        kid, sep, pub = kv.partition("=")
+        if not sep or not kid or not pub:
+            ap.error("--sut-key must look like KEYID=BASE64_PUBLIC_KEY")
+        sut_keys[kid] = pub
+    rep = run(scenarios, profile, a.base_url, a.participant, sut_keys=sut_keys,
               identity=load(a.identity) if a.identity else None,
               issuer=load(a.issuer_key) if a.issuer_key else None,
               allow_hosts=set(a.allow_host), delay=a.delay, only=set(a.only) if a.only else None)

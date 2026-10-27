@@ -29,6 +29,11 @@ def identity_for(net, subscriber="harness.example", register=True):
             "private_key_seed_b64": base64.b64encode(bytes(ident.keypair.signing_key)).decode()}
 
 
+def sut_keys(net):
+    """Operator-supplied trust for the node under test; the harness never fetches keys named in headers."""
+    return {net.bpp.identity.key_id: net.bpp.identity.keypair.public_b64}
+
+
 def profile(name):
     return json.loads((ROOT / "conformance" / "profiles" / f"{name}.json").read_text(encoding="utf-8-sig"))
 
@@ -37,7 +42,7 @@ def profile(name):
 def test_mockup_is_certified_and_admitted(net, name):
     prof = profile(name)
     rep = runner.run(runner.load_scenarios(runner.DEFAULT_SCENARIOS), prof, net.bpp_url, "mock-bpp",
-                     identity=identity_for(net), issuer=ISSUER)
+                     identity=identity_for(net), issuer=ISSUER, sut_keys=sut_keys(net))
     assert rep["verdict"] == "CERTIFIED", [r for r in rep["results"] if r["outcome"] != "pass"]
     assert runner.admit(rep, spec="beckn-2.0.0", role=prof["role"], participant="mock-bpp", profile=prof,
                         issuer_public_key_b64=ISSUER_PUB) == (True, "ok")
@@ -45,11 +50,29 @@ def test_mockup_is_certified_and_admitted(net, name):
 
 def test_unregistered_harness_identity_fails(net):
     rep = runner.run(runner.load_scenarios(runner.DEFAULT_SCENARIOS), profile("ds-core"), net.bpp_url, "mock-bpp",
-                     identity=identity_for(net, "ghost.example", register=False))
+                     identity=identity_for(net, "ghost.example", register=False),
+                     sut_keys=sut_keys(net))
     assert rep["verdict"] == "FAILED"
 
 
 def test_subset_of_scenarios_cannot_certify(net):
     scs = [s for s in runner.load_scenarios(runner.DEFAULT_SCENARIOS) if s["id"] == "DISC-001"]
-    rep = runner.run(scs, profile("ds-core"), net.bpp_url, "mock-bpp", identity=identity_for(net))
+    rep = runner.run(scs, profile("ds-core"), net.bpp_url, "mock-bpp", identity=identity_for(net), sut_keys=sut_keys(net))
     assert rep["verdict"] == "INCOMPLETE"
+
+
+def test_node_that_chains_its_response_signature_to_the_wrong_request_fails(net):
+    """Mutation check: sign_response chains to a constant instead of the incoming request signature."""
+    real = net.bpp.sign_response
+    net.bpp.sign_response = lambda raw, request_signature: real(raw, "AAAA")
+    rep = runner.run(runner.load_scenarios(runner.DEFAULT_SCENARIOS), profile("ds-core"), net.bpp_url, "mock-bpp",
+                     identity=identity_for(net), sut_keys=sut_keys(net))
+    assert rep["verdict"] == "FAILED"
+    assert any("response Signature" in r.get("detail", "") for r in rep["results"] if r["outcome"] == "fail")
+
+
+def test_certification_is_impossible_without_the_nodes_public_key(net):
+    rep = runner.run(runner.load_scenarios(runner.DEFAULT_SCENARIOS), profile("ds-core"), net.bpp_url, "mock-bpp",
+                     identity=identity_for(net))
+    assert rep["verdict"] == "FAILED"
+    assert any("--sut-key" in r.get("detail", "") for r in rep["results"])

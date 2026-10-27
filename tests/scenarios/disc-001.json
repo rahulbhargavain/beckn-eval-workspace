@@ -26,6 +26,9 @@
       "Signature": {
         "pattern": "keyId=\"[^\"]+\",algorithm=\"ed25519\""
       }
+    },
+    "response_signature": {
+      "chain": true
     }
   }
 }

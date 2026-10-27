@@ -4,6 +4,7 @@ param(
     [string]$ProfilePath = "conformance/profiles/bpp-core.json",
     [string]$Identity,
     [string]$IssuerKey,
+    [string[]]$SutKey,   # KEYID=BASE64_PUBLIC_KEY of the node under test (verifies its response Signature)
     [string]$Out
 )
 # Delegates to the Python conformance runner (PyNaCl needed for signed scenarios).
@@ -21,6 +22,7 @@ $runnerArgs = @("-m", "conformance.runner", "--base-url", $BaseUrl, "--participa
                 "--profile", (Resolve-Path $ProfilePath).Path)
 if ($Identity)  { $runnerArgs += @("--identity",   (Resolve-Path $Identity).Path) }
 if ($IssuerKey) { $runnerArgs += @("--issuer-key", (Resolve-Path $IssuerKey).Path) }
+foreach ($k in $SutKey) { $runnerArgs += @("--sut-key", $k) }
 if ($Out)       { $runnerArgs += @("--out", [IO.Path]::GetFullPath($Out)) }
 Push-Location $root
 try {
