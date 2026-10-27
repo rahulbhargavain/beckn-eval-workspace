@@ -42,6 +42,27 @@ class ScenarioError(ValueError):
     pass
 
 
+class TargetNotAllowed(ValueError):
+    pass
+
+
+LOOPBACK = {"127.0.0.1", "localhost", "::1"}
+
+
+def check_target(base_url, allow_hosts=None):
+    """Remote targets must be https and explicitly allow-listed (exact host); loopback is always fine."""
+    parts = urlsplit(base_url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or not host:
+        raise TargetNotAllowed("base_url must be an http(s) URL")
+    if host in LOOPBACK:
+        return
+    if parts.scheme != "https":
+        raise TargetNotAllowed(f"refusing plain http to remote host {host}")
+    if host not in {h.lower() for h in (allow_hosts or ())}:
+        raise TargetNotAllowed(f"remote host {host} is not in the allow-list (--allow-host)")
+
+
 # ---------------------------------------------------------------- assertions
 _TOKEN = r"\.[A-Za-z0-9_\-]+|\[\d+\]|\['[^']+'\]"
 _PATH_RE = re.compile(rf"\$(?:{_TOKEN})*")
@@ -351,11 +372,29 @@ def resign(report, issuer):
     return report
 
 
+def plan(scenarios, profile, base_url, only=None):
+    """Dry run: what would be sent, without signing or any network access."""
+    out = []
+    for s in scenarios:
+        validate_scenario(s)
+        if profile["role"] not in s["roles"] or (only and s["id"] not in only) or s.get("pending"):
+            continue
+        fault = s["request"].get("fault")
+        out.append({"id": s["id"], "method": s["request"].get("method", "POST"),
+                    "url": base_url.rstrip("/") + s["request"]["path"], "fault": fault,
+                    "requests": 2 if fault in ("replay", "replay-new-body") else 1})
+    return out
+
+
 def run(scenarios, profile, base_url, participant, timeout=10, now=None,
-        fixtures_root=DEFAULT_FIXTURES, identity=None, issuer=None):
+        fixtures_root=DEFAULT_FIXTURES, identity=None, issuer=None, allow_hosts=None, delay=0, only=None):
+    check_target(base_url, allow_hosts)
     for s in scenarios:
         validate_scenario(s)
     applicable = [s for s in scenarios if profile["role"] in s["roles"]]
+    probe = bool(only)
+    if probe:
+        applicable = [s for s in applicable if s["id"] in only]
     by_id = {s["id"]: s for s in scenarios}
     problems = []
     for rid, h in (profile.get("required") or {}).items():
@@ -366,7 +405,9 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
             problems.append(f"required scenario {rid} differs from the pinned version")
     results, warnings, hashes = [], [], {}
     mand_fail = mand_pending = False
-    for s in applicable:
+    for i, s in enumerate(applicable):
+        if delay and i:
+            time.sleep(delay)
         mandatory = s["level"] == "mandatory"
         hashes[s["id"]] = scenario_hash(s, fixtures_root)
         if s.get("pending"):
@@ -381,12 +422,14 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
             else:
                 warnings.append(s["id"])
     has_mandatory = any(s["level"] == "mandatory" for s in applicable)
+    if probe:
+        problems.append("probe run (--only): subset of scenarios, never certifiable")
     verdict = ("FAILED" if mand_fail else "INCOMPLETE" if mand_pending or problems or not has_mandatory
                else "CERTIFIED")
     rep = {"participant": participant, "profile": profile["name"], "spec": profile["spec"],
            "role": profile["role"], "issued_at": int(now if now is not None else time.time()),
            "runner_version": RUNNER_VERSION, "base_url": base_url,
-           "harness_key_id": (identity or {}).get("key_id"), "verdict": verdict,
+           "harness_key_id": (identity or {}).get("key_id"), "probe": probe, "verdict": verdict,
            "warnings": warnings, "problems": problems, "scenario_hashes": hashes, "results": results}
     rep["digest"] = digest(rep)
     return resign(rep, issuer) if issuer else rep
@@ -444,6 +487,10 @@ if __name__ == "__main__":
     ap.add_argument("--scenarios", default=str(DEFAULT_SCENARIOS))
     ap.add_argument("--identity", help="JSON file: key_id, private_key_seed_b64, bap_id, bap_uri, network_id")
     ap.add_argument("--issuer-key", help="operator JSON file: key_id, private_key_seed_b64 (signs the report)")
+    ap.add_argument("--allow-host", action="append", default=[], help="exact remote host allowed (https only); repeatable")
+    ap.add_argument("--delay", type=float, default=0, help="seconds to wait between scenarios")
+    ap.add_argument("--only", action="append", help="run only this scenario id (probe, never certifiable); repeatable")
+    ap.add_argument("--dry-run", action="store_true", help="print the request plan and exit without any network access")
     ap.add_argument("--pin", action="store_true", help="print the profile with required scenario hashes and exit")
     ap.add_argument("--out")
     a = ap.parse_args()
@@ -454,9 +501,14 @@ if __name__ == "__main__":
         raise SystemExit(0)
     if not (a.base_url and a.participant):
         ap.error("--base-url and --participant are required unless --pin")
+    if a.dry_run:
+        check_target(a.base_url, a.allow_host)
+        print(json.dumps(plan(scenarios, profile, a.base_url, set(a.only or [])), indent=2))
+        raise SystemExit(0)
     rep = run(scenarios, profile, a.base_url, a.participant,
               identity=load(a.identity) if a.identity else None,
-              issuer=load(a.issuer_key) if a.issuer_key else None)
+              issuer=load(a.issuer_key) if a.issuer_key else None,
+              allow_hosts=set(a.allow_host), delay=a.delay, only=set(a.only) if a.only else None)
     text = json.dumps(rep, indent=2)
     Path(a.out).write_text(text, encoding="utf-8") if a.out else print(text)
     raise SystemExit(0 if rep["verdict"] == "CERTIFIED" else 1)

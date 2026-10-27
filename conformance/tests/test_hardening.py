@@ -205,8 +205,8 @@ def test_bad_request_path_rejected(ok_server, path):
 
 
 def test_bad_base_url_scheme():
-    rep = runner.run([sc()], PROFILE, "file:///etc/passwd", "p")
-    assert rep["verdict"] == "FAILED" and "base_url" in rep["results"][0]["detail"]
+    with pytest.raises(runner.TargetNotAllowed):
+        runner.run([sc()], PROFILE, "file:///etc/passwd", "p")
 
 
 def test_inline_body_not_mutated(ok_server):

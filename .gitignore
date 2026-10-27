@@ -5,3 +5,4 @@ vendor/
 *identity*.json
 *issuer*.json
 report*.json
+secrets/
