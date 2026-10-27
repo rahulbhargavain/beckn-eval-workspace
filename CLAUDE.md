@@ -15,6 +15,7 @@ Read [MEMORY.md](MEMORY.md) first: it holds the domain background and decisions 
 - `tests/scenarios/` conformance scenarios (JSON), see `tests/README.md`
 - `tests/fixtures/` sample payloads and signed-message vectors
 - `docs/` evaluation notes and stack comparisons
+- `conformance/` Peppol-style certification runner and admission gate (see `docs/conformance.md`)
 - `scripts/` runners (`scripts/test.ps1`; add a stack-specific unit-test command here once a stack is chosen)
 
 ## Commands
