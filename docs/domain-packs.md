@@ -52,12 +52,33 @@ different policies over the same schemas; a store without a policy accepts what 
 `BppNode` takes a `store`. `discover` searches all active catalogs; `select/init/confirm` recompute
 price from the store and return the offer's `unitCode`. The legacy single-catalog path still works.
 
+## Lot ledger and the smallholder policy (`lots.py`, `packs/policies/kumaon-smallholder.json`)
+For an aggregation hub that sells graded smallholder produce. Written for the Kumaon value-chain design on
+cottonspace.com, which is a proposal, not an operating system (UNVERIFIED against any live hub).
+- **Lots.** `LotLedger.receive` takes a lot: id, product, grade, decimal quantity, unit, `originType`
+  (`own-land` or `lawful-collection`; produce from Green Credit forest parcels is refused), the household or group
+  `source` ids, and optional grading standard, certification scheme and scope (`domestic` or `export`),
+  moisture and Brix, harvest date and location.
+- **Events.** Every change is an append-only event; on-hand equals the event sum. Sales draw stock first-in-first-out,
+  all-or-nothing and thread-safe. `unsell` and `resell` serve cancel and update; `transfer` moves stock to the hub's own
+  factory without a sale; `write_off` needs a reason.
+- **Catalog.** `catalog()` publishes one resource and offer per product, grade and certificate, using the least
+  favourable lot figure (highest moisture, lowest Brix, earliest harvest). `availableQuantity` is a snapshot.
+- **Seller node.** With `BppNode(..., ledger=...)`, select/init/update check stock; confirm takes it (a refused confirm
+  creates no contract); a committed cancel returns it; a committed update adjusts it. Previews move nothing.
+  Two buyers who both quoted the last kilograms: the second confirm is refused with `BIZ_QUANTITY_UNAVAILABLE`.
+- **Pack additions.** `Produce` gains `originType`, `gradingStandard`, `certificationScheme`, `certificationScope`,
+  `moisturePercent`, `brixDegrees`; `ProduceTerms` gains `availableQuantity`. The `kumaon-smallholder` policy requires
+  `originType` and limits its values and `certificationScope`; `eval-default` is unchanged.
+- **Not covered.** No hold at select/init (stock is taken at confirm only); no persistence, expiry of stale state or
+  physical-count reconciliation; no auction, bid or payout flow; one process only.
+
 ## Known limits
 - Only `Intent.textSearch` discovery is implemented.
 - Quantities are decimals with at most three places (see `docs/mockup-findings.md`); no per-offer step or minimum is enforced yet.
 - Delivery-window ordering is unchecked.
 - The price is assumed to live in `considerations[0]`.
-- No inventory or availability.
+- Inventory exists only when the node is given a lot ledger (below); the default node sells without stock limits.
 - Policy rules match on `@type` only, not on context.
 - Not mirrored: the real upstream schemas. Aligning with DEG and `beckn/schemas` needs a pinned
   local mirror (the upstream files are OpenAPI 3.1 YAML with `$ref`s to `schema.nfh.global`), and

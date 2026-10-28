@@ -7,7 +7,8 @@ components:
     ProduceTerms:
       title: ProduceTerms
       description: Quantity unit and ordering terms for produce, used for arithmetic
-        when quoting.
+        when quoting. availableQuantity is a snapshot taken when the catalog was published;
+        the seller's stock check at select/confirm is authoritative.
       type: object
       required:
       - '@context'
@@ -24,4 +25,7 @@ components:
           minimum: 1
         deliveryLeadDays:
           type: integer
+          minimum: 0
+        availableQuantity:
+          type: number
           minimum: 0

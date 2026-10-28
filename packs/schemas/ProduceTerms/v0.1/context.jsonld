@@ -6,6 +6,7 @@
     "ProduceTerms": "bk:ProduceTerms",
     "unitCode": "bk:unitCode",
     "minOrderQuantity": "bk:minOrderQuantity",
-    "deliveryLeadDays": "bk:deliveryLeadDays"
+    "deliveryLeadDays": "bk:deliveryLeadDays",
+    "availableQuantity": "bk:availableQuantity"
   }
 }

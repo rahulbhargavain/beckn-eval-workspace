@@ -1,6 +1,6 @@
 # Produce v0.1
 
-Compliance and freshness facts for agricultural produce. Name, grade and description belong in the Descriptor.
+Compliance and freshness facts for agricultural produce. Name, grade and description belong in the Descriptor. originType, certificationScope and the assay figures (moisturePercent, brixDegrees) let a buyer tell own-land produce from lawful collection, domestic from export-valid certification, and dry from damp lots; their allowed values are network policy.
 
 Status: experimental, workspace-owned, not an upstream Beckn schema (UNVERIFIED against beckn/schemas and beckn/DEG).
 

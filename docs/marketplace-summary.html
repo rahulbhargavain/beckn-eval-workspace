@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decentralised Marketplace Status</title>
+<style>
+  :root {
+    --bg: #fafaf7; --fg: #1d2420; --muted: #5d6a62; --card: #ffffff; --line: #dfe4dc;
+    --accent: #2f6b4a; --warn-bg: #fff6df; --warn-line: #e3c36a; --chip: #e9f1ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141a16; --fg: #e6ece7; --muted: #9aa8a0; --card: #1b231e; --line: #2c3730;
+      --accent: #7fc79f; --warn-bg: #2b2412; --warn-line: #6b5a22; --chip: #22302a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141a16; --fg: #e6ece7; --muted: #9aa8a0; --card: #1b231e; --line: #2c3730;
+    --accent: #7fc79f; --warn-bg: #2b2412; --warn-line: #6b5a22; --chip: #22302a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 16px 56px; }
+  h1 { font-size: 1.8rem; margin: 0 0 4px; line-height: 1.2; }
+  h2 { font-size: 1.2rem; margin: 36px 0 12px; }
+  h3 { font-size: 1rem; margin: 0 0 6px; }
+  p { margin: 0 0 10px; }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  .lead { font-size: 1.05rem; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card p { color: var(--muted); font-size: .94rem; margin: 0; }
+  .tag { display: inline-block; background: var(--chip); color: var(--accent); border-radius: 999px; padding: 1px 10px; font-size: .78rem; margin-bottom: 6px; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: 12px 16px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .93rem; }
+  thead th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  ul { margin: 0; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  .tablewrap { overflow-x: auto; }
+  footer { margin-top: 40px; color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); padding-top: 14px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Decentralised marketplaces: where the work stands</h1>
+  <p class="sub">Status report, 28 October 2026. Draft for review. Work in progress, not a product.</p>
+
+  <p class="lead">We are testing whether an open, server-to-server transaction standard can run marketplaces without a central platform in the middle. The standard under test is Beckn Protocol 2.0.0, which is itself still a draft. We judge it by running the same tests against any system that implements it, not by what anyone claims about it. So far the only system tested is our own reference network. One practical application, a Himalayan smallholder produce hub, shows where the standard helps and where it does not.</p>
+
+  <h2>What exists</h2>
+  <div class="grid">
+    <div class="card"><span class="tag">Test harness</span>
+      <h3>A certification-style test runner</h3>
+      <p>Sends signed requests to a system under test, deliberately sends faulty ones (forged signatures, repeated messages), checks the signatures on its replies and, in one optional test that runs on the same machine, on its callbacks (the replies that arrive later as separate messages), and issues signed reports. The registry's admission check works out the verdict again for itself, so an edited or partial report is refused.</p></div>
+    <div class="card"><span class="tag">Reference network</span>
+      <h3>A small working network</h3>
+      <p>A buyer app, a seller node and a registry running together on one machine, covering discovery, quoting, ordering, confirmation, status, update and cancellation. It exists to prove that the tests themselves work.</p></div>
+    <div class="card"><span class="tag">Domain packs</span>
+      <h3>Catalog formats for agriculture, energy and tourism</h3>
+      <p>Thin schemas, with the rules each network may impose kept in a separate policy file. New domains are added as data, with no change to the core code.</p></div>
+    <div class="card"><span class="tag">Onboarding</span>
+      <h3>Signed registry files</h3>
+      <p>A tool that builds and checks the signed files a participant publishes so others can find and verify it. Not yet cross-checked against a second implementation.</p></div>
+    <div class="card"><span class="tag">Stock</span>
+      <h3>A lot ledger for a produce hub</h3>
+      <p>Records graded lots with their source households, publishes a catalog of what is actually on hand, and stops the seller node from selling the same kilograms twice.</p></div>
+  </div>
+
+  <h2>What testing has shown about the standard</h2>
+  <ul>
+    <li><strong>Lost results are an open question.</strong> If a request is acknowledged but the result never arrives, the specification marks the question "to be announced" and gives no retry or timeout rule. Our workaround is to ask for the status again, which means resending the full order details.</li>
+    <li><strong>Callback addresses are a security risk.</strong> The specification requires public HTTPS addresses that match the registry, but it never tells the receiving system to check for private addresses, redirects or address-lookup tricks before it calls them, so each implementer must add that guard.</li>
+    <li><strong>Quantities are open.</strong> The standard does not constrain them, so fractional quantities such as 12.345 kg need a rule from the network. Ours is decimal arithmetic with at most three places.</li>
+    <li><strong>Ten tests are expected to fail until the specification is corrected.</strong> Each records a gap, contradiction or error in the specification's own files. We track them as findings about the standard, not as defects in our code, and have not yet reported them to the specification's authors.</li>
+  </ul>
+
+  <h2>Application: a Kumaon smallholder produce hub</h2>
+  <p>The smallholder value-chain design published on <a href="https://www.cottonspace.com/tech-notes/smallholder-value-chains.html">cottonspace.com</a> proposes collection, grading, assaying, vacuum packing and a sealed-bid spot-auction layer at a hub in Bhimtal. That note describes a proposal and small pilots. It reports no measured farmer prices or incomes, and its aggregation facility exists as a submitted project report. Our work maps onto it as follows.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Step in the design</th><th>What we have</th><th>Still missing</th></tr></thead>
+    <tbody>
+      <tr><td>Collection and onboarding</td><td>A lot record (a batch of produce) with the source households or group</td><td>Real onboarding and identity checks</td></tr>
+      <tr><td>Grading and assay</td><td>Grade on every lot; grading standard, moisture and Brix (sugar content) where recorded</td><td>The grading and laboratory testing themselves, which are physical work</td></tr>
+      <tr><td>Certification and provenance</td><td>Own-land or lawful-collection origin is required, and certificate scope (domestic or export) is stated</td><td>Verification of any certificate</td></tr>
+      <tr><td>Stock and sale</td><td>Published catalog of what is on hand; no overselling; cancellations return stock; transfers to the hub's own factory</td><td>Persistence, stock counts, expiry of stale orders</td></tr>
+      <tr><td>Sealed-bid auction</td><td>Nothing in the standard supports bidding rounds</td><td>An auction layer, which the design proposes to build on an existing exchange</td></tr>
+      <tr><td>Payout to farmers</td><td>Nothing</td><td>Settlement, outside both</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>What this does not claim</h2>
+  <div class="note">
+    <ul>
+      <li>No live network has been joined and no real transaction has taken place. This is a test environment.</li>
+      <li>Our catalog formats are our own and have not been checked against the upstream community schemas.</li>
+      <li>The ONDC material we reviewed uses an earlier protocol version that is not wire-compatible with 2.0 (messages from one cannot be read by the other).</li>
+      <li>Only the agriculture catalog format has been exercised with real use in mind; the energy and tourism formats are placeholders.</li>
+      <li>This is independent work. It is not endorsed by ONDC, NeML, NeSL, the Beckn or NFH community, or any public body.</li>
+      <li>Tests ran on one operating system plus one earlier trial on a rented Linux server; the latest changes have not been re-run on Linux.</li>
+      <li>The lot ledger is in memory only and is a design aid, not a system of record.</li>
+      <li>We have no evidence that this approach improves what smallholders are paid. Recording price by grade by lot is how that evidence could start to exist.</li>
+    </ul>
+  </div>
+
+  <h2>Next steps</h2>
+  <ul>
+    <li>Make the ledger durable (it currently forgets everything on restart) and let a quote reserve stock briefly before the order is confirmed.</li>
+    <li>Suggest an unambiguous encoding for the bid commitment in the design's proposed auction, since joining fields end to end before hashing can be read more than one way.</li>
+    <li>Align our catalog formats with the published Beckn community schemas.</li>
+    <li>Join a test network once a counterparty is willing to trade, and compare results with the same tests.</li>
+  </ul>
+
+  <footer>
+    Test figures at publication: 533 passed, 1 skipped and 10 expected failures on Windows, 28 October 2026. Specification version: Beckn Protocol 2.0.0 (draft). Statements about the cottonspace.com design are taken from that site's own note, last revised 23 October 2026, and are not independently verified.
+  </footer>
+</div>
+</body>
+</html>

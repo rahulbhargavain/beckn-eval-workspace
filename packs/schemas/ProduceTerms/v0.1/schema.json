@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://packs.beckn-eval.invalid/schemas/ProduceTerms/v0.1/schema.json",
   "title": "ProduceTerms",
-  "description": "Quantity unit and ordering terms for produce, used for arithmetic when quoting.",
+  "description": "Quantity unit and ordering terms for produce, used for arithmetic when quoting. availableQuantity is a snapshot taken when the catalog was published; the seller's stock check at select/confirm is authoritative.",
   "type": "object",
   "required": [
     "@context",
@@ -24,6 +24,10 @@
     },
     "deliveryLeadDays": {
       "type": "integer",
+      "minimum": 0
+    },
+    "availableQuantity": {
+      "type": "number",
       "minimum": 0
     }
   }

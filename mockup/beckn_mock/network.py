@@ -13,8 +13,9 @@ _DEFAULT = object()
 
 
 class MockNetwork:
-    def __init__(self, callback_allowlist=_DEFAULT, catalog_path=DEFAULT_CATALOG, store=None):
+    def __init__(self, callback_allowlist=_DEFAULT, catalog_path=DEFAULT_CATALOG, store=None, ledger=None):
         self.store = store
+        self.ledger = ledger
         self._allowlist_arg = callback_allowlist
         self.catalog_path = catalog_path
         self.network_id = NETWORK_ID
@@ -38,7 +39,7 @@ class MockNetwork:
         allow = [self.bap_url] if self._allowlist_arg is _DEFAULT else self._allowlist_arg
         trusted = [self.registry_url]
         self.bpp = BppNode(bpp_id, self.registry_url, NETWORK_ID, trusted, callback_allowlist=allow,
-                           catalog_path=self.catalog_path, store=self.store)
+                           catalog_path=self.catalog_path, store=self.store, ledger=self.ledger)
         self.bap = BapNode(bap_id, self.registry_url, NETWORK_ID, trusted, default_bpp_id=bpp_id.subscriber_id,
                            bpp_allowlist=[self.bpp_url])
         for srv, app in ((reg_srv, registry.create_app(self.registry)), (bap_srv, self.bap.app),

@@ -17,6 +17,7 @@ from fastapi import Request
 
 from . import signing, spec, urlguard
 from .catalogstore import CatalogStore
+from .lots import LotError
 from .packs import PackRegistry
 from .node import (Identity, Node, Reject, dumps, iso_now, now_ts, raw_signature, read_body, same_url)
 
@@ -28,13 +29,14 @@ class BppNode(Node):
     http_follows_redirects = False
 
     def __init__(self, identity: Identity, registry_url, network_id, trusted_registries=(),
-                 callback_allowlist=None, catalog_path=DEFAULT_CATALOG, callback_delay=0.05, store=None):
+                 callback_allowlist=None, catalog_path=DEFAULT_CATALOG, callback_delay=0.05, store=None, ledger=None):
         super().__init__(identity, registry_url, network_id, trusted_registries)
         self.callback_allowlist = callback_allowlist
         if store is None:  # legacy single mock catalog: its mock/v1 context is not a pack, so non-strict
             store = CatalogStore(PackRegistry([], strict=False))
             store.publish(json.loads(Path(catalog_path).read_text(encoding="utf-8")))
         self.store = store
+        self.ledger = ledger      # optional LotLedger: when set, only on-hand stock can be sold
         self.callback_delay = callback_delay
         self.contracts = {}       # contract id -> contract (authoritative PN view)
         self.owners = {}          # contract id -> (bapId, transactionId)
@@ -238,6 +240,24 @@ class BppNode(Node):
                                                       "currency": currency, "value": self._num(total)}}]
         return out, consideration
 
+    def _wanted(self, ctx, commitments):
+        """{resource id: total quantity} across commitments, using the same quantity rules as quoting."""
+        want = {}
+        for cm in commitments:
+            for r in cm["resources"]:
+                q = self._qty(ctx, (r.get("quantity") or {}).get("unitQuantity", 1))
+                want[r["id"]] = want.get(r["id"], Decimal(0)) + q
+        return want
+
+    def _stock_check(self, ctx, commitments, ref=None):
+        """Advisory check at select/init/update: is it on hand now? The sale itself is taken at confirm."""
+        if self.ledger is None:
+            return
+        for rid, q in self._wanted(ctx, commitments).items():
+            have = self.ledger.available_for(rid, ref=ref)
+            if q > have:
+                raise self._bad(ctx, "BIZ_QUANTITY_UNAVAILABLE", f"only {self._num(have)} of {rid} is on hand")
+
     def _owned(self, ctx, contract_id):
         if contract_id not in self.contracts or self.owners[contract_id][0] != ctx["bapId"]:
             raise self._bad(ctx, "BIZ_ORDER_NOT_FOUND", "unknown contract")
@@ -252,6 +272,7 @@ class BppNode(Node):
 
     def _on_select(self, ctx, msg):
         commitments, consideration = self._quote(ctx, msg["contract"]["commitments"])
+        self._stock_check(ctx, msg["contract"]["commitments"])
         draft = {"commitments": commitments, "consideration": consideration, "status": {"code": "DRAFT"}}
         self.drafts[(ctx["bapId"], ctx["transactionId"])] = draft
         return {"contract": draft}, None
@@ -261,6 +282,7 @@ class BppNode(Node):
         if not c.get("participants"):
             raise self._bad(ctx, "SCH_REQUIRED_FIELD_MISSING", "init requires participant billing details")
         commitments, consideration = self._quote(ctx, c["commitments"])
+        self._stock_check(ctx, c["commitments"])
         prev = self.drafts.get((ctx["bapId"], ctx["transactionId"]), {})
         draft = {"id": prev.get("id") or str(uuid.uuid4()), "commitments": commitments,
                  "consideration": consideration, "participants": c["participants"],
@@ -280,6 +302,11 @@ class BppNode(Node):
                    for s in c.get("settlements", [])):
             raise self._bad(ctx, "BIZ_PAYMENT_FAILED", "no payment proof in settlements")
         commitments, consideration = self._quote(ctx, c["commitments"])
+        if self.ledger is not None:  # the sale: all-or-nothing, so a refused confirm leaves no contract behind
+            try:
+                self.ledger.sell(draft["id"], self._wanted(ctx, c["commitments"]))
+            except LotError as e:
+                raise self._bad(ctx, "BIZ_QUANTITY_UNAVAILABLE", str(e)) from None
         for cm in commitments:
             cm["status"] = {"descriptor": {"code": "ACTIVE"}}
         consideration[0]["status"] = {"code": "ACTIVE"}
@@ -326,6 +353,7 @@ class BppNode(Node):
         if c["status"]["code"] != "ACTIVE":
             raise self._bad(ctx, "BIZ_INVALID_STATE_TRANSITION", "only ACTIVE contracts can be updated")
         self._quote(ctx, msg["contract"]["commitments"])  # same quantity rules on preview and commit
+        self._stock_check(ctx, msg["contract"]["commitments"], ref=c["id"])
 
         def preview():
             commitments, consideration = self._quote(ctx, msg["contract"]["commitments"])
@@ -341,6 +369,11 @@ class BppNode(Node):
         def commit(p):
             if shape(p["commitments"]) != shape(msg["contract"]["commitments"]):
                 raise self._bad(ctx, "BIZ_UPDATE_INCONSISTENT", "commit differs from previewed update")
+            if self.ledger is not None:
+                try:
+                    self.ledger.resell(c["id"], self._wanted(ctx, p["commitments"]))
+                except LotError as e:
+                    raise self._bad(ctx, "BIZ_QUANTITY_UNAVAILABLE", str(e)) from None
             self.contracts[c["id"]] = p
             return copy.deepcopy(p)
         return self._two_phase(ctx, "update", c["id"], preview, commit)
@@ -355,6 +388,8 @@ class BppNode(Node):
                                                       "shortDesc": "Full refund, no penalty"})
 
         def commit(_p):
+            if self.ledger is not None:
+                self.ledger.unsell(c["id"])
             done = copy.deepcopy(c)
             done["status"] = {"code": "CANCELLED"}
             for cm in done["commitments"]:

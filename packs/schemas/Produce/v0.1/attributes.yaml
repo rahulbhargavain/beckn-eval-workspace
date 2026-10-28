@@ -7,7 +7,10 @@ components:
     Produce:
       title: Produce
       description: Compliance and freshness facts for agricultural produce. Name,
-        grade and description belong in the Descriptor.
+        grade and description belong in the Descriptor. originType, certificationScope
+        and the assay figures (moisturePercent, brixDegrees) let a buyer tell own-land
+        produce from lawful collection, domestic from export-valid certification,
+        and dry from damp lots; their allowed values are network policy.
       type: object
       required:
       - '@context'
@@ -27,3 +30,23 @@ components:
           type: array
           items:
             type: string
+        originType:
+          type: string
+          minLength: 1
+        gradingStandard:
+          type: string
+          minLength: 1
+        certificationScheme:
+          type: string
+          minLength: 1
+        certificationScope:
+          type: string
+          minLength: 1
+        moisturePercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        brixDegrees:
+          type: number
+          minimum: 0
+          maximum: 100

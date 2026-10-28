@@ -6,6 +6,12 @@
     "Produce": "bk:Produce",
     "originCountry": "bk:originCountry",
     "harvestDate": "bk:harvestDate",
-    "certifications": "bk:certifications"
+    "certifications": "bk:certifications",
+    "originType": "bk:originType",
+    "gradingStandard": "bk:gradingStandard",
+    "certificationScheme": "bk:certificationScheme",
+    "certificationScope": "bk:certificationScope",
+    "moisturePercent": "bk:moisturePercent",
+    "brixDegrees": "bk:brixDegrees"
   }
 }

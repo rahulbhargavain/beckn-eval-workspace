@@ -1,0 +1,37 @@
+{
+  "name": "kumaon-smallholder",
+  "rules": [
+    {
+      "type": "Produce",
+      "require": [
+        "originCountry",
+        "originType"
+      ],
+      "vocabulary": {
+        "originType": [
+          "own-land",
+          "lawful-collection"
+        ],
+        "certificationScope": [
+          "domestic",
+          "export"
+        ]
+      }
+    },
+    {
+      "type": "ProduceTerms",
+      "require": [
+        "unitCode"
+      ],
+      "vocabulary": {
+        "unitCode": [
+          "KGM",
+          "TNE",
+          "C62",
+          "LTR"
+        ]
+      }
+    }
+  ],
+  "notes": "Stricter than eval-default for a smallholder aggregation hub. originType excludes produce from Green Credit forest parcels (outside the pipeline, UNVERIFIED reading of the programme). certificationScope separates domestic-only schemes such as PGS-India from export-valid ones."
+}

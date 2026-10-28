@@ -1,6 +1,6 @@
 # ProduceTerms v0.1
 
-Quantity unit and ordering terms for produce, used for arithmetic when quoting.
+Quantity unit and ordering terms for produce, used for arithmetic when quoting. availableQuantity is a snapshot taken when the catalog was published; the seller's stock check at select/confirm is authoritative.
 
 Status: experimental, workspace-owned, not an upstream Beckn schema (UNVERIFIED against beckn/schemas and beckn/DEG).
 

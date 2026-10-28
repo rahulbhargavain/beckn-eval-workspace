@@ -10,6 +10,16 @@
       "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
       "@type": "Produce",
       "originCountry": "IN"
+    },
+    {
+      "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+      "@type": "Produce",
+      "originCountry": "IN",
+      "originType": "own-land",
+      "gradingStandard": "e-NAM",
+      "certificationScheme": "PGS-India",
+      "certificationScope": "domestic",
+      "moisturePercent": 9.5
     }
   ],
   "invalid": [
@@ -20,6 +30,16 @@
         "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
         "@type": "Produce",
         "originCountry": "India"
+      }
+    },
+    {
+      "layer": "schema",
+      "reason": "moisturePercent above 100",
+      "attributes": {
+        "@context": "https://packs.beckn-eval.invalid/schemas/Produce/v0.1/context.jsonld",
+        "@type": "Produce",
+        "originCountry": "IN",
+        "moisturePercent": 140
       }
     },
     {
