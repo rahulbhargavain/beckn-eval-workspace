@@ -36,6 +36,7 @@ class CallbackListener:
         self._cond = threading.Condition()
         self._pending = {}   # messageId -> signature of the request it answers
         self._records = {}   # messageId -> first verdict {ok, action, error, body}
+        self._ready = set()  # messageIds whose reply has been written; wait() returns only for these
         listener = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -61,8 +62,8 @@ class CallbackListener:
     def wait(self, message_id, timeout):
         """The first verdict for `message_id`, or None if nothing (valid or not) arrived in `timeout` s."""
         with self._cond:
-            self._cond.wait_for(lambda: message_id in self._records, timeout)
-            return self._records.get(message_id)
+            self._cond.wait_for(lambda: message_id in self._ready, timeout)
+            return self._records.get(message_id) if message_id in self._ready else None
 
     def close(self):
         self.server.shutdown()
@@ -126,10 +127,16 @@ class CallbackListener:
             if mid in self._records:  # a concurrent delivery got there first
                 return self._nack(h, 400, "AUT_REPLAY_DETECTED", "already received", mid)
             if len(self._records) >= MAX_RECORDS:
+                self._ready.discard(next(iter(self._records)))
                 self._records.pop(next(iter(self._records)))
             self._records[mid] = {"ok": error is None, "action": action, "error": error or "",
                                   "body": doc if error is None else None}
-            self._cond.notify_all()
-        if error:
-            return self._nack(h, status, code, error, mid)
-        self._reply(h, 200, {"message": {"status": "ACK", "messageId": mid}})
+        try:
+            if error:
+                return self._nack(h, status, code, error, mid)
+            self._reply(h, 200, {"message": {"status": "ACK", "messageId": mid}})
+        finally:
+            # Publish only once the reply is out: the runner closes the listener as soon as wait() returns.
+            with self._cond:
+                self._ready.add(mid)
+                self._cond.notify_all()

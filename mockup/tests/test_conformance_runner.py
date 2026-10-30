@@ -118,12 +118,20 @@ def test_cb001_the_mockup_delivers_a_verifiable_on_discover(net):
 
 
 def test_cb001_a_callback_chained_to_the_wrong_request_fails(net, monkeypatch):
+    """Only the asynchronous callback is mis-chained. The synchronous Ack stays valid, so the scenario must
+    reach the callback stage and fail there (not earlier on the Ack, which would also close the listener
+    before the node's callback arrives)."""
+    import sys
     from beckn_mock import signing as msign
     real = msign.sign_message
-    monkeypatch.setattr(msign, "sign_message", lambda kp, kid, raw, c, e, request_signature=None:
-                        real(kp, kid, raw, c, e, request_signature="AAAA" if request_signature else None))
+
+    def sign(kp, kid, raw, c, e, request_signature=None):
+        in_callback = sys._getframe(1).f_code.co_name == "_deliver"
+        return real(kp, kid, raw, c, e, request_signature="AAAA" if (in_callback and request_signature) else request_signature)
+
+    monkeypatch.setattr(msign, "sign_message", sign)
     r = _run_cb(net, _cb_scenario(within=2))
-    assert r["outcome"] == "fail" and "does not verify" in r["detail"], r
+    assert r["outcome"] == "fail" and r["detail"].startswith("callback refused:") and "does not verify" in r["detail"], r
 
 
 def test_cb001_a_callback_that_never_comes_fails_after_the_wait(net):

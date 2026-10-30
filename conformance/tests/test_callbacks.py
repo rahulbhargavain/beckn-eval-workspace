@@ -160,3 +160,26 @@ def test_close_releases_the_port():
         s.bind(("127.0.0.1", port))
     finally:
         s.close()
+
+
+@pytest.mark.parametrize("good", [True, False])
+def test_the_verdict_is_published_only_after_the_reply_is_written(lis, monkeypatch, good):
+    """The runner closes the listener as soon as wait() returns. If the verdict were published before the reply
+    is written, the node's POST could be cut off mid-response (seen as a ReadError on Linux)."""
+    import threading
+    written = threading.Event()
+    real = lis._reply
+
+    def slow_reply(h, status, body_):
+        time.sleep(0.3)
+        real(h, status, body_)
+        written.set()
+
+    monkeypatch.setattr(lis, "_reply", slow_reply)
+    raw = body()
+    auth = auth_for(raw, chain=REQ_SIG if good else "b3RoZXI=")
+    t = threading.Thread(target=post, args=(lis, "/on_discover", raw, auth))
+    t.start()
+    assert lis.wait("m-1", 2) is not None
+    assert written.is_set(), "wait() returned before the reply was written"
+    t.join(5)
