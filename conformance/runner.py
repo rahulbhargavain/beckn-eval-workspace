@@ -8,6 +8,7 @@ edited report is admitted. Stdlib only, except PyNaCl for signed requests and re
 """
 import base64
 import copy
+import datetime
 import hashlib
 import json
 import re
@@ -40,7 +41,7 @@ FLOW_KEYS = {"within", "steps"}
 STEP_KEYS = {"action", "contract", "settlementsPatch", "jsonpath"}
 FLOW_ACTIONS = {"select", "init", "confirm", "status"}
 MAX_CALLBACK_WAIT = 60
-OPERATORS = {"exists", "type", "enum", "pattern"}
+OPERATORS = {"exists", "type", "enum", "pattern", "if_present"}
 TYPES = {"string", "number", "integer", "boolean", "null", "object", "array"}
 
 
@@ -119,6 +120,10 @@ def _is_operator(want):
 
 def op_match(got, op):
     present = got is not MISSING
+    if op.get("if_present"):  # a field the spec allows to be absent: absent passes, present must satisfy the rest
+        if not present:
+            return True
+        op = {k: v for k, v in op.items() if k != "if_present"}
     if "exists" in op and present != op["exists"]:
         return False
     if not present:
@@ -490,17 +495,19 @@ def _check_flow(s, base_url, timeout, fixtures_root, identity, sut_keys, listene
                 if isinstance(item, dict):
                     item.update(patch)
         seed_ctx = seed.get("context") if isinstance(seed.get("context"), dict) else {}
-        body = {"context": {**seed_ctx, "action": action, "version": "2.0.0", "transactionId": txn},
+        stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        body = {"context": {**seed_ctx, "action": action, "version": "2.0.0", "transactionId": txn, "timestamp": stamp},
                 "message": {"contract": contract}}
         want = json.loads(json.dumps(st.get("jsonpath") or {}).replace("{{flow.contractId}}", str(contract_id)))
+        # transactionId "persists ... from discover through confirm" (beckn.yaml Context): not asserted on /status
+        echo = {} if action == "status" else {"$.context.transactionId": "{{request.context.transactionId}}"}
         sub = {"request": {"method": "POST", "path": "/" + action, "auth": SIGNED, "body": body},
                "expect": {"status": 200,
                           "jsonpath": {"$.message.status": "ACK", "$.message.messageId": "{{request.context.messageId}}"},
                           "headers": {"Signature": {"pattern": 'keyId="[^"]+",algorithm="ed25519"'}},
                           "response_signature": {"chain": True},
                           "callback": {"action": f"on_{action}", "within": flow.get("within", 5),
-                                       "jsonpath": {"$.context.transactionId": "{{request.context.transactionId}}",
-                                                    **want}}}}
+                                       "jsonpath": {**echo, **want}}}}
         got = {}
         ok, why = _check(sub, base_url, timeout, fixtures_root, identity, sut_keys, listener, capture=got)
         if not ok:

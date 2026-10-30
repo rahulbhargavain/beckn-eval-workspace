@@ -9,5 +9,6 @@ def seed_for(net):
             "resources": [{"id": "res-001", "quantity": {"unitQuantity": 1, "unitCode": "UNIT"}}],
             "offer": {"id": "offer-001", "resourceIds": ["res-001"]}}]}},
         "init": {"contract": {"participants": [{"id": "buyer-1", "descriptor": {"name": "Test Buyer"}}]}},
-        "confirm": {"settlementsPatch": {"status": "COMMITTED"}},
+        "confirm": {"settlementsPatch": {"status": "DRAFT", "settlementAttributes": {
+            "@context": "https://schema.example.org/mock/v1", "@type": "PaymentReference", "paymentReference": "TEST-REF-1"}}},
     }

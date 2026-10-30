@@ -89,6 +89,10 @@ def _no_performance(b):
     b["message"]["contract"].pop("performance", None)
 
 
+def _no_settlements(b):
+    b["message"]["contract"].pop("settlements", None)
+
+
 def _other_txn(b):
     b["context"]["transactionId"] = "00000000-0000-4000-8000-000000000000"
 
@@ -104,13 +108,12 @@ def _other_contract(b):
 @pytest.mark.parametrize("action,fn,where", [
     ("select", _empty_commitments, "select"),
     ("select", _other_txn, "select"),
-    ("init", _drop_contract_id, "init"),
     ("init", _bad_id, "init"),
+    ("init", _no_settlements, "init"),
     ("confirm", _not_active, "confirm"),
     ("confirm", _no_performance, "confirm"),
     ("confirm", _bad_id, "confirm"),
     ("status", _other_contract, "status"),
-    ("status", _other_txn, "status"),
 ])
 def test_each_broken_must_fails_the_flow_at_its_step(net, action, fn, where):
     _mutate(net, action, fn)
@@ -131,3 +134,50 @@ def test_bpp_core_without_a_seed_cannot_be_certified(net):
                      identity=_cb_identity(net), sut_keys=sut_keys(net))
     assert rep["verdict"] == "FAILED"
     assert any(r["id"] == "LIFE-001" and r["outcome"] == "fail" for r in rep["results"])
+
+
+def _spy_requests(monkeypatch):
+    """Record the body of every request the flow engine hands to the single-request checker."""
+    sent = []
+    real = runner._check
+
+    def spy(sub, *a, **k):
+        sent.append(sub["request"]["body"])
+        return real(sub, *a, **k)
+
+    monkeypatch.setattr(runner, "_check", spy)
+    return sent
+
+
+def test_an_id_assigned_only_at_confirm_is_conformant(net):
+    """beckn.yaml Contract.id: generated at the PN "at any stage before" /on_confirm, so an on_init without it
+    is allowed. The flow must not fail at init for that (a later step may, if the node cannot track the contract)."""
+    _mutate(net, "init", _drop_contract_id)
+    r = run_life(net)
+    assert not r.get("detail", "").startswith("step init"), r
+
+
+def test_confirm_always_carries_a_draft_settlement_with_the_operators_payment_evidence(net, monkeypatch):
+    """ConfirmAction: the Contract MUST include at least one Settlement entry carrying the payment proof or
+    reference; the CN introduces *draft* settlements and the PN moves them to COMMITTED (beckn.yaml Settlement)."""
+    sent = _spy_requests(monkeypatch)
+    assert run_life(net)["outcome"] == "pass"
+    confirm = next(b for b in sent if b["context"]["action"] == "confirm")
+    settlements = confirm["message"]["contract"]["settlements"]
+    assert settlements and all(s["status"] == "DRAFT" and s["settlementAttributes"] for s in settlements), settlements
+
+
+def test_the_harness_assigns_a_timestamp_as_the_consumer_node(net, monkeypatch):
+    """Context: "The CN assigns bapId, bapUri, transactionId, messageId, and timestamp"."""
+    import re
+    sent = _spy_requests(monkeypatch)
+    assert run_life(net)["outcome"] == "pass"
+    assert len(sent) == 4
+    for b in sent:
+        assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)", b["context"]["timestamp"]), b["context"]
+
+
+def test_a_status_callback_is_not_required_to_echo_the_transaction_id(net):
+    """The spec says transactionId persists "from discover through confirm"; it does not extend that to /status."""
+    _mutate(net, "status", _other_txn)
+    assert run_life(net)["outcome"] == "pass"

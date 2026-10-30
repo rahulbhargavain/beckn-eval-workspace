@@ -32,7 +32,7 @@ Still open: the SUT's key is trusted by operator supply, not looked up in its re
 
 `LIFE-001` is mandatory in `bpp-core`. It is one signed transaction: `select`, `init`, `confirm`, `status`. Each request after the first is built from the callback the node sent for the step before, so a node that ACKs and never calls back fails at the first step. It uses the local callback listener, so the same loopback limits apply (below).
 
-What it asserts comes from the spec (`api/v2.0.0/beckn.yaml` at a22300a): every callback echoes `context.transactionId` and carries the right `context.action`; `init` and `confirm` callbacks carry a UUID `contract.id`; the `on_confirm` contract has `status.code` `ACTIVE` and a `performance` array; the `on_status` contract has the same id that `on_confirm` assigned. Not yet asserted: schema validation of the whole callback body, `cancel`, `track`, `update`, `rate`, `support`.
+What it asserts comes from the spec (`api/v2.0.0/beckn.yaml` at a22300a): callbacks up to `on_confirm` echo `context.transactionId` (the spec says it persists "from discover through confirm", so `/status` is not held to it) and every callback carries the right `context.action`; `on_init` carries `settlements` (payment terms), and a `contract.id` only if present, which must then be a UUID (the id may be assigned "at any stage before" `/on_confirm`); `on_confirm` carries a UUID `contract.id`, `status.code` `ACTIVE` and a `performance` array; `on_status` carries the id that `on_confirm` assigned. The harness acts as the consumer node: it assigns `timestamp`, `transactionId` and `messageId`. Not yet asserted (known gaps, see the review notes in MEMORY.md): `on_select` consideration, `on_status` status/performance, that selected resource ids survive the flow, `context.version` on callbacks, schema validation of whole callback bodies, and `cancel`, `track`, `update`, `rate`, `support`.
 
 The catalog and the payment evidence are specific to each node, so the operator supplies a **seed** file (`--seed seed.json`). Without it `LIFE-001` FAILS and says so; it is never skipped. Seed shape (all keys optional except `select`):
 
@@ -45,7 +45,7 @@ The catalog and the payment evidence are specific to each node, so the operator 
 }
 ```
 
-`context` is merged into every request context. `init.contract` and `confirm` values are deep-merged onto the contract the node returned. `settlementsPatch` is applied to every settlement in the contract sent with `confirm`; what counts as payment evidence is domain-specific (UNVERIFIED which settlement status the spec expects there), so the operator states it. The seed is not part of the report.
+`context` is merged into every request context. `init.contract` is deep-merged onto the contract the node returned. `settlementsPatch` is merged into every settlement of the contract sent with `confirm`: ConfirmAction requires at least one Settlement carrying the payment proof or reference, and the consumer node introduces it as a **draft** (the PN moves it to COMMITTED), so keep `status` `DRAFT` and put the evidence in `settlementAttributes` (an `Attributes` object, which needs `@context` and `@type`). What the evidence looks like is domain-specific, so the operator states it. The seed is not part of the report yet (a known gap: the report should carry its hash).
 
 ## Async callbacks (local-only receiver)
 
