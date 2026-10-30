@@ -1,0 +1,67 @@
+name: Tests and Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Spec the scenarios target (CC BY-NC-SA 4.0, fetched at run time, never committed). See NOTICE.
+  SPEC_REPO: https://github.com/beckn/protocol-specifications-v2
+  SPEC_COMMIT: a22300a
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            mockup/requirements.txt
+            conformance/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Fetch the spec at the pinned commit
+        run: |
+          git clone --quiet "$SPEC_REPO" vendor/protocol-specifications-v2
+          git -C vendor/protocol-specifications-v2 checkout --quiet "$SPEC_COMMIT"
+      - name: Install
+        run: pip install -r mockup/requirements.txt -r conformance/requirements.txt
+      - name: Conformance suite
+        run: python -m pytest conformance -q
+      - name: Mockup suite
+        working-directory: mockup
+        run: python -m pytest -q
+      - name: Viewer suite
+        run: node --test viewer/test/viewer.test.js
+      - name: Build the site
+        run: python scripts/build_site.py site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
