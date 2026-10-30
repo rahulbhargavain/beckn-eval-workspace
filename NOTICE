@@ -29,7 +29,7 @@ Third-party material
    who copies spec text or derived schemas into a project must meet the
    NonCommercial and ShareAlike terms of that licence.
 
-3. Other upstream repositories studied in docs/evaluation.md
+3. Other upstream repositories studied during evaluation
    (DEG, beckn-utilities, open-agri, open-tourism, starter-kit, ONDC-Official/*)
    Licences vary: CC BY-NC-SA 4.0, CC BY-ND 4.0, CC0, MIT, ISC, or none.
    NOT included. They are cloned into vendor/ (git-ignored) for reading only.
