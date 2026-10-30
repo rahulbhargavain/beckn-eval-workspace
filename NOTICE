@@ -1,0 +1,43 @@
+Beckn evaluation workspace
+Copyright 2026 Rahul Bhargava
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+That licence covers only the original work in this repository: the mockup,
+the conformance runner, the scenarios, the viewer, the domain packs under
+packs/ and the scripts. It does not cover the third-party material below.
+
+Trademarks and ownership
+------------------------
+"Beckn", "Beckn Protocol", "ONDC", "DeDi" and related names, logos and
+specifications belong to their respective owners. This project is an
+independent evaluation workspace. It is not affiliated with, endorsed by or
+certified by those owners. A "CERTIFIED" verdict from this repository's
+conformance runner is not an official certification.
+
+Third-party material
+--------------------
+1. DeDi onboarding schemas and examples, conformance/dedi_vendor/
+   Licence: Apache-2.0 (conformance/dedi_vendor/LICENSE-Apache-2.0).
+   Source commit and date: see conformance/dedi_vendor/README.md.
+   Included in this repository, unmodified unless that README says otherwise.
+
+2. Beckn Protocol v2 specification (protocol-specifications-v2, api/v2.0.0)
+   Licence: CC BY-NC-SA 4.0.
+   NOT included. The mockup and the conformance runner read it at run time from
+   vendor/ (git-ignored) or from the path in BECKN_SPEC_DIR. Fetch it from the
+   upstream repository at the commit named in docs/mockup-findings.md. Anyone
+   who copies spec text or derived schemas into a project must meet the
+   NonCommercial and ShareAlike terms of that licence.
+
+3. Other upstream repositories studied in docs/evaluation.md
+   (DEG, beckn-utilities, open-agri, open-tourism, starter-kit, ONDC-Official/*)
+   Licences vary: CC BY-NC-SA 4.0, CC BY-ND 4.0, CC0, MIT, ISC, or none.
+   NOT included. They are cloned into vendor/ (git-ignored) for reading only.
+   A repository with no licence file grants no reuse rights.
+
+4. packs/external/PriceSpecification.json
+   A pointer record only (context URL and source commit). It contains no
+   upstream schema text.
+
+Python and Node dependencies are installed from their own registries under
+their own licences (see mockup/requirements.txt, conformance/requirements.txt).

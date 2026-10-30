@@ -6,3 +6,5 @@ vendor/
 *issuer*.json
 report*.json
 secrets/
+docs/security.md
+audit_snapshot*
