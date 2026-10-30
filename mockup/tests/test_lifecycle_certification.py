@@ -93,6 +93,24 @@ def _no_settlements(b):
     b["message"]["contract"].pop("settlements", None)
 
 
+def _no_consideration(b):
+    b["message"]["contract"].pop("consideration", None)
+
+
+def _other_resource(b):
+    for c in b["message"]["contract"]["commitments"]:
+        for r in c["resources"]:
+            r["id"] = "res-not-selected"
+
+
+def _wrong_version(b):
+    b["context"]["version"] = "1.1.0"
+
+
+def _no_status(b):
+    b["message"]["contract"].pop("status", None)
+
+
 def _other_txn(b):
     b["context"]["transactionId"] = "00000000-0000-4000-8000-000000000000"
 
@@ -113,6 +131,14 @@ def _other_contract(b):
     ("confirm", _not_active, "confirm"),
     ("confirm", _no_performance, "confirm"),
     ("confirm", _bad_id, "confirm"),
+    ("select", _no_consideration, "select"),
+    ("select", _other_resource, "select"),
+    ("select", _wrong_version, "select"),
+    ("init", _wrong_version, "init"),
+    ("confirm", _wrong_version, "confirm"),
+    ("status", _wrong_version, "status"),
+    ("status", _no_status, "status"),
+    ("status", _no_performance, "status"),
     ("status", _other_contract, "status"),
 ])
 def test_each_broken_must_fails_the_flow_at_its_step(net, action, fn, where):

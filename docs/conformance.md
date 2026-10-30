@@ -45,7 +45,7 @@ The catalog and the payment evidence are specific to each node, so the operator 
 }
 ```
 
-`context` is merged into every request context. `init.contract` is deep-merged onto the contract the node returned. `settlementsPatch` is merged into every settlement of the contract sent with `confirm`: ConfirmAction requires at least one Settlement carrying the payment proof or reference, and the consumer node introduces it as a **draft** (the PN moves it to COMMITTED), so keep `status` `DRAFT` and put the evidence in `settlementAttributes` (an `Attributes` object, which needs `@context` and `@type`). What the evidence looks like is domain-specific, so the operator states it. The seed is not part of the report yet (a known gap: the report should carry its hash).
+`context` is merged into every request context. `init.contract` is deep-merged onto the contract the node returned. `settlementsPatch` is merged into every settlement of the contract sent with `confirm`: ConfirmAction requires at least one Settlement carrying the payment proof or reference, and the consumer node introduces it as a **draft** (the PN moves it to COMMITTED), so keep `status` `DRAFT` and put the evidence in `settlementAttributes` (an `Attributes` object, which needs `@context` and `@type`). What the evidence looks like is domain-specific, so the operator states it. The report carries `seed_sha256` (the hash of the seed in canonical JSON, or null when none was given) inside the signed digest, not the seed itself, which may hold node-private detail; an auditor who is given the seed can check it matches what was tested.
 
 ## Async callbacks (local-only receiver)
 

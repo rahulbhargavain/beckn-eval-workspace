@@ -431,6 +431,9 @@ def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None, listene
         return False, f"request error: {_short(str(e), 200)}"
     allowed = exp["status_in"] if "status_in" in exp else [exp["status"]]
     if status not in allowed:
+        if status == 202 and exp.get("callback"):
+            return False, ("status 202 (AckNoCallback): the node says it will send no callback, but this step needs "
+                           "its callback; the node may have declined the request, so check the seed")
         return False, f"status {status} not in {allowed}"
     for name, op in (exp.get("headers") or {}).items():
         got = rh.get(name.lower(), MISSING)
@@ -484,6 +487,10 @@ def _check_flow(s, base_url, timeout, fixtures_root, identity, sut_keys, listene
                        "bap_uri is http://127.0.0.1:<free port> (the URL registered for it)")
     flow = s["flow"]
     txn, prev, contract_id = str(uuid.uuid4()), None, None
+    try:  # the resource the operator selects: on_select must reflect it
+        resource_id = seed["select"]["contract"]["commitments"][0]["resources"][0]["id"]
+    except (KeyError, IndexError, TypeError):
+        resource_id = None
     for st in flow["steps"]:
         action = st["action"]
         part = seed.get(action) if isinstance(seed.get(action), dict) else {}
@@ -498,9 +505,13 @@ def _check_flow(s, base_url, timeout, fixtures_root, identity, sut_keys, listene
         stamp = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         body = {"context": {**seed_ctx, "action": action, "version": "2.0.0", "transactionId": txn, "timestamp": stamp},
                 "message": {"contract": contract}}
-        want = json.loads(json.dumps(st.get("jsonpath") or {}).replace("{{flow.contractId}}", str(contract_id)))
-        # transactionId "persists ... from discover through confirm" (beckn.yaml Context): not asserted on /status
-        echo = {} if action == "status" else {"$.context.transactionId": "{{request.context.transactionId}}"}
+        want = json.loads(json.dumps(st.get("jsonpath") or {}).replace("{{flow.contractId}}", str(contract_id))
+                          .replace("{{flow.resourceId}}", str(resource_id)))
+        # Context.version is the constant 2.0.0. transactionId "persists ... from discover through confirm"
+        # (beckn.yaml Context): not asserted on /status.
+        echo = {"$.context.version": "2.0.0"}
+        if action != "status":
+            echo["$.context.transactionId"] = "{{request.context.transactionId}}"
         sub = {"request": {"method": "POST", "path": "/" + action, "auth": SIGNED, "body": body},
                "expect": {"status": 200,
                           "jsonpath": {"$.message.status": "ACK", "$.message.messageId": "{{request.context.messageId}}"},
@@ -612,7 +623,10 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
            "role": profile["role"], "issued_at": int(now if now is not None else time.time()),
            "runner_version": RUNNER_VERSION, "base_url": base_url,
            "harness_key_id": (identity or {}).get("key_id"), "probe": probe, "verdict": verdict,
-           "warnings": warnings, "problems": problems, "scenario_hashes": hashes, "results": results,
+           "warnings": warnings, "problems": problems, "scenario_hashes": hashes,
+           "seed_sha256": None if seed is None else hashlib.sha256(
+               json.dumps(seed, sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+           "results": results,
            "sut_keys": dict(sorted((sut_keys or {}).items()))}
     rep["digest"] = digest(rep)
     return resign(rep, issuer) if issuer else rep
