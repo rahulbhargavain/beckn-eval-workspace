@@ -9,6 +9,7 @@ import html
 import json
 import os
 import shutil
+import socket
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ for p in (ROOT, ROOT / "mockup"):
 
 import nacl.signing  # noqa: E402
 
+from beckn_mock.lifecycle_seed import seed_for  # noqa: E402
 from beckn_mock.network import MockNetwork  # noqa: E402
 from conformance import runner  # noqa: E402
 
@@ -34,15 +36,19 @@ def _sample_reports():
     scenarios = runner.load_scenarios(runner.DEFAULT_SCENARIOS)
     reports = {}
     with MockNetwork() as net:
-        ident = net.new_identity("sample-harness.example", "BAP", net.bap_url)
-        identity = {"key_id": ident.key_id, "bap_id": "sample-harness.example", "bap_uri": net.bap_url,
+        with socket.socket() as sock:  # the runner's callback listener binds this loopback port
+            sock.bind(("127.0.0.1", 0))
+            uri = f"http://127.0.0.1:{sock.getsockname()[1]}"
+        ident = net.new_identity("sample-harness.example", "BAP", uri)
+        net.bpp.callback_allowlist = [*net.bpp.callback_allowlist, uri]
+        identity = {"key_id": ident.key_id, "bap_id": "sample-harness.example", "bap_uri": uri,
                     "network_id": net.network_id,
                     "private_key_seed_b64": base64.b64encode(bytes(ident.keypair.signing_key)).decode()}
         sut_keys = {net.bpp.identity.key_id: net.bpp.identity.keypair.public_b64}
         for name in PROFILES:
             prof = json.loads((ROOT / "conformance" / "profiles" / f"{name}.json").read_text(encoding="utf-8-sig"))
             reports[name] = runner.run(scenarios, prof, net.bpp_url, PARTICIPANT, identity=identity,
-                                       issuer=issuer, sut_keys=sut_keys)
+                                       issuer=issuer, sut_keys=sut_keys, seed=seed_for(net))
     return reports
 
 
@@ -82,8 +88,7 @@ Independent and unofficial; not affiliated with the Beckn or ONDC owners.</p>
 <h2>Sample reports</h2>
 <p class="note">These come from the repository's own mockup, run with throwaway keys at build time
 (spec commit {SPEC_COMMIT}, build {html.escape(sha)}). They show the report format. They are not a certification of
-any real node, and CERTIFIED here means only that the mockup passes this repository's pinned scenarios. The recommended
-callback scenario CB-001 is not set up in this build, so it shows as a (non-blocking) failure in the ds-core sample.</p>
+any real node, and CERTIFIED here means only that the mockup passes this repository's pinned scenarios.</p>
 <table>
 <tr><th>Profile</th><th>Verdict</th><th>File</th></tr>
 {rows}

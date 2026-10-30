@@ -30,6 +30,10 @@ def test_sample_reports_are_genuine_and_labelled(tmp_path):
         assert rep["verdict"] == "CERTIFIED"
         assert rep["participant"] == "sample-mockup-node"
         assert rep["issuer_key_id"].startswith("sample-operator")
+    ds = json.loads((tmp_path / "sample" / "ds-core.report.json").read_text(encoding="utf-8"))
+    bpp = json.loads((tmp_path / "sample" / "bpp-core.report.json").read_text(encoding="utf-8"))
+    assert {r["id"]: r["outcome"] for r in ds["results"]}["CB-001"] == "pass"
+    assert {r["id"]: r["outcome"] for r in bpp["results"]}["LIFE-001"] == "pass"
     index = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert "not a certification" in index.lower()
     assert runner  # imported via build_site's sys.path setup

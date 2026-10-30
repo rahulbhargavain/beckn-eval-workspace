@@ -40,9 +40,10 @@ def profile(name):
 
 @pytest.mark.parametrize("name", ["ds-core", "bpp-core"])
 def test_mockup_is_certified_and_admitted(net, name):
+    from beckn_mock.lifecycle_seed import seed_for
     prof = profile(name)
     rep = runner.run(runner.load_scenarios(runner.DEFAULT_SCENARIOS), prof, net.bpp_url, "mock-bpp",
-                     identity=identity_for(net), issuer=ISSUER, sut_keys=sut_keys(net))
+                     identity=_cb_identity(net), issuer=ISSUER, sut_keys=sut_keys(net), seed=seed_for(net))
     assert rep["verdict"] == "CERTIFIED", [r for r in rep["results"] if r["outcome"] != "pass"]
     assert runner.admit(rep, spec="beckn-2.0.0", role=prof["role"], participant="mock-bpp", profile=prof,
                         issuer_public_key_b64=ISSUER_PUB) == (True, "ok")

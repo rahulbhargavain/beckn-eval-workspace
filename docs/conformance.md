@@ -28,6 +28,25 @@ Response `Signature` (runner v3): every signed scenario now demands `expect.resp
 
 Still open: the SUT's key is trusted by operator supply, not looked up in its registry (no revoke/rotate/expiry-of-key check); PN replay (`PNNEG-005`) is recommended+pending because it needs a catalog-valid `select`; registry-backed revoke/rotate; expiry/skew, wrong-algorithm and digest-mismatch negatives; PN lifecycle actions and `on_*` callbacks beyond `CB-001` (the receiver is local-only; a remote node cannot reach it); BAP role has no scenarios; an unauthenticated operator public-key distribution story.
 
+## Provider lifecycle (LIFE-001) and the seed
+
+`LIFE-001` is mandatory in `bpp-core`. It is one signed transaction: `select`, `init`, `confirm`, `status`. Each request after the first is built from the callback the node sent for the step before, so a node that ACKs and never calls back fails at the first step. It uses the local callback listener, so the same loopback limits apply (below).
+
+What it asserts comes from the spec (`api/v2.0.0/beckn.yaml` at a22300a): every callback echoes `context.transactionId` and carries the right `context.action`; `init` and `confirm` callbacks carry a UUID `contract.id`; the `on_confirm` contract has `status.code` `ACTIVE` and a `performance` array; the `on_status` contract has the same id that `on_confirm` assigned. Not yet asserted: schema validation of the whole callback body, `cancel`, `track`, `update`, `rate`, `support`.
+
+The catalog and the payment evidence are specific to each node, so the operator supplies a **seed** file (`--seed seed.json`). Without it `LIFE-001` FAILS and says so; it is never skipped. Seed shape (all keys optional except `select`):
+
+```json
+{
+  "context": {"bppId": "bpp.example.org", "bppUri": "http://127.0.0.1:8080"},
+  "select":  {"contract": {"commitments": [ ... a Commitment the node will accept, with resource id and quantity ... ]}},
+  "init":    {"contract": {"participants": [ ... the buyer ... ]}},
+  "confirm": {"settlementsPatch": {"status": "COMMITTED"}}
+}
+```
+
+`context` is merged into every request context. `init.contract` and `confirm` values are deep-merged onto the contract the node returned. `settlementsPatch` is applied to every settlement in the contract sent with `confirm`; what counts as payment evidence is domain-specific (UNVERIFIED which settlement status the spec expects there), so the operator states it. The seed is not part of the report.
+
 ## Async callbacks (local-only receiver)
 
 A scenario can say `expect.callback: {"action": "on_discover", "within": 5, "jsonpath": {...}}`. The runner then starts `conformance/callbacks.py`, a listener on **127.0.0.1 only**, and the scenario passes only if the node's `on_*` POST arrives in time and verifies.

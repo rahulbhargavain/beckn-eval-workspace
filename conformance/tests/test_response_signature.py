@@ -167,6 +167,8 @@ def test_response_signature_value_is_strict(bad):
 
 def test_every_signed_repo_scenario_demands_a_chained_response_signature():
     for s in runner.load_scenarios(runner.DEFAULT_SCENARIOS):
+        if "flow" in s:  # every flow step is built signed and demands the chain (runner._check_flow)
+            continue
         if s["request"].get("auth") == runner.SIGNED:
             assert s["expect"].get("response_signature") == {"chain": True}, s["id"]
 

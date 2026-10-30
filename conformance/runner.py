@@ -18,7 +18,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
 
-RUNNER_VERSION = "3"
+RUNNER_VERSION = "4"
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SCENARIOS = ROOT / "tests" / "scenarios"
 DEFAULT_FIXTURES = ROOT / "tests"
@@ -32,10 +32,13 @@ ROLES = {"BAP", "BPP", "DS"}
 LEVELS = {"mandatory", "recommended"}
 FAULTS = {"bad-signature", "unknown-participant", "replay", "replay-new-body", "invalid-json",
           "missing-message"}
-SCENARIO_KEYS = {"id", "level", "roles", "spec", "name", "notes", "pending", "pendingReason", "request", "expect"}
+SCENARIO_KEYS = {"id", "level", "roles", "spec", "name", "notes", "pending", "pendingReason", "request", "expect", "flow"}
 REQUEST_KEYS = {"method", "path", "body", "auth", "fault", "headers"}
 EXPECT_KEYS = {"status", "status_in", "jsonpath", "headers", "response_signature", "callback"}
 CALLBACK_KEYS = {"action", "within", "jsonpath"}
+FLOW_KEYS = {"within", "steps"}
+STEP_KEYS = {"action", "contract", "settlementsPatch", "jsonpath"}
+FLOW_ACTIONS = {"select", "init", "confirm", "status"}
 MAX_CALLBACK_WAIT = 60
 OPERATORS = {"exists", "type", "enum", "pattern"}
 TYPES = {"string", "number", "integer", "boolean", "null", "object", "array"}
@@ -137,6 +140,31 @@ def _short(x, n=120):
 
 
 # ---------------------------------------------------------------- scenarios
+def _validate_flow(s, bad):
+    f = s["flow"]
+    if "request" in s or "expect" in s:
+        bad("a flow scenario has no request/expect")
+    if not isinstance(f, dict) or set(f) - FLOW_KEYS:
+        bad(f"flow must be an object with only {sorted(FLOW_KEYS)}")
+    w = f.get("within", 5)
+    if isinstance(w, bool) or not isinstance(w, (int, float)) or not 0 < w <= MAX_CALLBACK_WAIT:
+        bad(f"flow.within must be a number of seconds in (0, {MAX_CALLBACK_WAIT}]")
+    steps = f.get("steps")
+    if not isinstance(steps, list) or not steps:
+        bad("flow.steps must be a non-empty list")
+    for i, st in enumerate(steps):
+        if not isinstance(st, dict) or set(st) - STEP_KEYS or st.get("action") not in FLOW_ACTIONS:
+            bad(f"flow step {i} needs an action in {sorted(FLOW_ACTIONS)} and only keys {sorted(STEP_KEYS)}")
+        if st.get("contract") not in ("seed", "previous") or (i == 0 and st["contract"] != "seed"):
+            bad(f"flow step {i}: contract must be 'seed' (first step) or 'previous'")
+        for p in (st.get("jsonpath") or {}):
+            try:
+                jsonpath({}, p)
+            except ScenarioError as e:
+                bad(str(e))
+    return s
+
+
 def validate_scenario(s):
     def bad(msg):
         raise ScenarioError(f"scenario {s.get('id', '?') if isinstance(s, dict) else '?'}: {msg}")
@@ -152,6 +180,8 @@ def validate_scenario(s):
     roles = s.get("roles")
     if not isinstance(roles, list) or not roles or not set(roles) <= ROLES:
         bad(f"roles must be a non-empty subset of {sorted(ROLES)}")
+    if "flow" in s:
+        return _validate_flow(s, bad)
     req, exp = s.get("request"), s.get("expect")
     if not isinstance(req, dict) or not isinstance(exp, dict):
         bad("request and expect are required objects")
@@ -233,7 +263,7 @@ def _fixture_path(root, rel):
 
 def scenario_hash(s, fixtures_root):
     h = hashlib.sha256(json.dumps(s, sort_keys=True, separators=(",", ":")).encode())
-    body = s["request"].get("body")
+    body = (s.get("request") or {}).get("body")
     if isinstance(body, str):
         try:
             raw = _fixture_path(fixtures_root, body).read_bytes()
@@ -385,7 +415,7 @@ def _jsonpath_problem(doc, assertions, ctx):
     return None
 
 
-def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None, listener=None):
+def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None, listener=None, capture=None):
     exp = s["expect"]
     if exp.get("callback") and listener is None:
         return False, ("callback scenarios need the local listener: a loopback target and an identity whose bap_uri is "
@@ -423,8 +453,61 @@ def _check(s, base_url, timeout, fixtures_root, identity, sut_keys=None, listene
             return False, f"callback refused: {rec['error']}"
         if rec["action"] != cb["action"]:
             return False, f"got {rec['action']}, wanted {cb['action']}"
+        if capture is not None:
+            capture["callback"] = rec["body"]
         if problem := _jsonpath_problem(rec["body"], cb.get("jsonpath") or {}, ctx):
             return False, f"callback {problem}"
+    return True, ""
+
+
+def _merge(base, over):
+    """Deep merge: objects merge key by key, anything else in `over` replaces."""
+    out = copy.deepcopy(base)
+    for k, v in over.items():
+        out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else copy.deepcopy(v)
+    return out
+
+
+def _check_flow(s, base_url, timeout, fixtures_root, identity, sut_keys, listener, seed):
+    """One signed transaction, step by step. The node-specific inputs come from `seed`; every later request is
+    built from the callback the node sent for the step before, so a node that does not call back cannot pass."""
+    if not isinstance(seed, dict):
+        return False, ("lifecycle scenarios need a seed (--seed FILE): what to select, who the buyer is and how payment "
+                       "is evidenced are specific to the node's catalog and domain (see docs/conformance.md)")
+    if listener is None:
+        return False, ("lifecycle scenarios need the local callback listener: a loopback target and an identity whose "
+                       "bap_uri is http://127.0.0.1:<free port> (the URL registered for it)")
+    flow = s["flow"]
+    txn, prev, contract_id = str(uuid.uuid4()), None, None
+    for st in flow["steps"]:
+        action = st["action"]
+        part = seed.get(action) if isinstance(seed.get(action), dict) else {}
+        own = part.get("contract") if isinstance(part.get("contract"), dict) else {}
+        contract = _merge(prev, own) if st["contract"] == "previous" else copy.deepcopy(own)
+        patch = part.get("settlementsPatch")
+        if st.get("settlementsPatch") and isinstance(patch, dict):
+            for item in contract.get("settlements") or []:
+                if isinstance(item, dict):
+                    item.update(patch)
+        seed_ctx = seed.get("context") if isinstance(seed.get("context"), dict) else {}
+        body = {"context": {**seed_ctx, "action": action, "version": "2.0.0", "transactionId": txn},
+                "message": {"contract": contract}}
+        want = json.loads(json.dumps(st.get("jsonpath") or {}).replace("{{flow.contractId}}", str(contract_id)))
+        sub = {"request": {"method": "POST", "path": "/" + action, "auth": SIGNED, "body": body},
+               "expect": {"status": 200,
+                          "jsonpath": {"$.message.status": "ACK", "$.message.messageId": "{{request.context.messageId}}"},
+                          "headers": {"Signature": {"pattern": 'keyId="[^"]+",algorithm="ed25519"'}},
+                          "response_signature": {"chain": True},
+                          "callback": {"action": f"on_{action}", "within": flow.get("within", 5),
+                                       "jsonpath": {"$.context.transactionId": "{{request.context.transactionId}}",
+                                                    **want}}}}
+        got = {}
+        ok, why = _check(sub, base_url, timeout, fixtures_root, identity, sut_keys, listener, capture=got)
+        if not ok:
+            return False, f"step {action}: {why}"
+        prev = got["callback"]["message"]["contract"]
+        if action == "confirm":
+            contract_id = prev.get("id")
     return True, ""
 
 
@@ -451,6 +534,10 @@ def plan(scenarios, profile, base_url, only=None):
         validate_scenario(s)
         if profile["role"] not in s["roles"] or (only and s["id"] not in only) or s.get("pending"):
             continue
+        if "flow" in s:
+            out.append({"id": s["id"], "flow": [st["action"] for st in s["flow"]["steps"]],
+                        "url": base_url.rstrip("/"), "requests": len(s["flow"]["steps"])})
+            continue
         fault = s["request"].get("fault")
         out.append({"id": s["id"], "method": s["request"].get("method", "POST"),
                     "url": base_url.rstrip("/") + s["request"]["path"], "fault": fault,
@@ -459,7 +546,7 @@ def plan(scenarios, profile, base_url, only=None):
 
 
 def run(scenarios, profile, base_url, participant, timeout=10, now=None,
-        fixtures_root=DEFAULT_FIXTURES, identity=None, issuer=None, allow_hosts=None, delay=0, only=None, sut_keys=None):
+        fixtures_root=DEFAULT_FIXTURES, identity=None, issuer=None, allow_hosts=None, delay=0, only=None, sut_keys=None, seed=None):
     check_target(base_url, allow_hosts)
     for s in scenarios:
         validate_scenario(s)
@@ -478,7 +565,7 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
     results, warnings, hashes = [], [], {}
     mand_fail = mand_pending = False
     listener = None
-    wants_callbacks = any(s["expect"].get("callback") and not s.get("pending") for s in applicable)
+    wants_callbacks = any(("flow" in s or s["expect"].get("callback")) and not s.get("pending") for s in applicable)
     callback_port = _callback_port(base_url, identity) if wants_callbacks else None
     if callback_port:
         from .callbacks import CallbackListener
@@ -496,7 +583,10 @@ def run(scenarios, profile, base_url, participant, timeout=10, now=None,
                 results.append({"id": s["id"], "level": s["level"], "outcome": "pending"})
                 mand_pending |= mandatory
                 continue
-            ok, why = _check(s, base_url, timeout, fixtures_root, identity, sut_keys, listener)
+            if "flow" in s:
+                ok, why = _check_flow(s, base_url, timeout, fixtures_root, identity, sut_keys, listener, seed)
+            else:
+                ok, why = _check(s, base_url, timeout, fixtures_root, identity, sut_keys, listener)
             results.append({"id": s["id"], "level": s["level"], "outcome": "pass" if ok else "fail", "detail": why})
             if not ok:
                 if mandatory:
@@ -588,6 +678,7 @@ if __name__ == "__main__":
     ap.add_argument("--allow-host", action="append", default=[], help="exact remote host allowed (https only); repeatable")
     ap.add_argument("--sut-key", action="append", default=[], metavar="KEYID=BASE64_PUBLIC_KEY",
                     help="trusted public key of the system under test, to verify its response Signature; repeatable")
+    ap.add_argument("--seed", help="JSON file with node-specific lifecycle inputs (see docs/conformance.md)")
     ap.add_argument("--delay", type=float, default=0, help="seconds to wait between scenarios")
     ap.add_argument("--only", action="append", help="run only this scenario id (probe, never certifiable); repeatable")
     ap.add_argument("--dry-run", action="store_true", help="print the request plan and exit without any network access")
@@ -614,7 +705,8 @@ if __name__ == "__main__":
     rep = run(scenarios, profile, a.base_url, a.participant, sut_keys=sut_keys,
               identity=load(a.identity) if a.identity else None,
               issuer=load(a.issuer_key) if a.issuer_key else None,
-              allow_hosts=set(a.allow_host), delay=a.delay, only=set(a.only) if a.only else None)
+              allow_hosts=set(a.allow_host), delay=a.delay, only=set(a.only) if a.only else None,
+              seed=load(a.seed) if a.seed else None)
     text = json.dumps(rep, indent=2)
     Path(a.out).write_text(text, encoding="utf-8") if a.out else print(text)
     raise SystemExit(0 if rep["verdict"] == "CERTIFIED" else 1)
