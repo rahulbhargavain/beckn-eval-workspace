@@ -50,7 +50,8 @@ jobs:
         shell: bash  # pipefail, so a changed baseline fails the step even through tee
         run: |
           python interop/onix/crosscheck.py compare "$RUNNER_TEMP/vectors.json" "$RUNNER_TEMP/onix.json" \
-            --onix-commit "$ONIX_COMMIT" --out onix-signing-report.json \n            --baseline interop/onix/baseline.json | tee "$GITHUB_STEP_SUMMARY"
+            --onix-commit "$ONIX_COMMIT" --out onix-signing-report.json \
+            --baseline interop/onix/baseline.json | tee "$GITHUB_STEP_SUMMARY"
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
