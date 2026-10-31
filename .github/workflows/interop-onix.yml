@@ -57,3 +57,58 @@ jobs:
         with:
           name: onix-signing-report
           path: onix-signing-report.json
+
+  deployment:
+    # A real adapter, unmodified: signature validation, DeDi key lookup (over TLS, to a stub registry the
+    # adapter reaches because fabric.nfh.global is mapped to localhost inside a private mount namespace),
+    # routing to a stub backend, signed ack. Compared to interop/onix/deploy/baseline.json.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.26.1"
+          cache: false
+      - run: pip install -r mockup/requirements.txt -r conformance/requirements.txt
+      - name: Fetch the spec at the pinned commit
+        run: |
+          git clone --quiet https://github.com/beckn/protocol-specifications-v2 vendor/protocol-specifications-v2
+          git -C vendor/protocol-specifications-v2 checkout --quiet a22300a
+      - name: Fetch ONIX at the pinned commit
+        run: |
+          git init --quiet onix
+          git -C onix fetch --quiet --depth 1 "$ONIX_REPO" "$ONIX_COMMIT"
+          git -C onix checkout --quiet "$ONIX_COMMIT"
+      - name: Build the adapter and the plugins it needs
+        working-directory: onix
+        run: |
+          mkdir -p plugins
+          go build -o server cmd/adapter/main.go
+          for p in cache dediregistry simplekeymanager reqpreprocessor router signer signvalidator; do
+            go build -buildmode=plugin -o plugins/$p.so ./pkg/plugin/implementation/$p/cmd/plugin.go
+          done
+      - name: Start redis and the adapter
+        run: |
+          sudo apt-get install -y -qq redis-server >/dev/null
+          python interop/onix/deploy/prepare.py "$RUNNER_TEMP/dep" "$GITHUB_WORKSPACE/onix" "$RUNNER_TEMP/dep"
+          sudo bash interop/onix/deploy/start.sh "$RUNNER_TEMP/dep" "$GITHUB_WORKSPACE/onix" > "$RUNNER_TEMP/adapter.log" 2>&1 &
+          for i in $(seq 60); do
+            curl -s -o /dev/null http://127.0.0.1:8082/ && break
+            sleep 2
+          done
+          curl -s -o /dev/null http://127.0.0.1:8082/ || { cat "$RUNNER_TEMP/adapter.log"; exit 1; }
+      - name: Probe and run the profile
+        shell: bash
+        run: |
+          python interop/onix/deploy/check.py "$RUNNER_TEMP/dep" http://127.0.0.1:8082             --baseline interop/onix/deploy/baseline.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: onix-deployment
+          path: |
+            ${{ runner.temp }}/adapter.log
+            ${{ runner.temp }}/dep/report-*.json

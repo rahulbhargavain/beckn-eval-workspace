@@ -41,6 +41,45 @@ The same vectors also pass through the runner's own verifier (`conformance/signi
 - The ack signing string appends `request-signature: {sig}` as a fourth line in both implementations.
 - ONIX's parser accepts a wrong or absent `headers` attribute (tested above), which our strict parser and the `Signature` pattern reject. Whether receivers must check it is a question for the maintainers.
 
+## Live deployment (2026-10-31)
+
+An unmodified ONIX adapter at `b0a134b` (BPP receiver: `validateSign`, `addRoute`, `signAck`; plugins `cache`,
+`dediregistry`, `simplekeymanager`, `reqpreprocessor`, `router`, `signer`, `signvalidator`), with redis, a stub
+backend and a stub DeDi registry. Kit and baseline: `interop/onix/deploy/`; CI job `deployment`.
+
+How it is wired, and what that does not prove:
+- ONIX locks the registry URL to `https://fabric.nfh.global/registry/dedi` (signed constants fetched from GitHub at
+  startup; a different value stops the adapter). So the adapter is not reconfigured: `start.sh` maps that host to
+  127.0.0.1 inside a private mount namespace (`/etc/hosts` and the system trust store are untouched) and trusts a
+  throwaway CA. The stub answers in the shape ONIX's parser reads (`data.details.signing_public_key` and so on); that
+  shape is UNVERIFIED against the real DeDi service, and our own DeDi onboarding files are not used here yet.
+- Only the receiver path is deployed. No caller module, so no `on_*` callbacks leave ONIX.
+
+Findings (all observed on the live adapter; baseline in `interop/onix/deploy/baseline.json`):
+
+| Request, differing only in keyId shape and digest prefix | Outcome |
+|---|---|
+| ONIX keyId `sub|key|ed25519`, `BLAKE-512=` | 200 ACK, key looked up, routed to the backend, ack signed |
+| ONIX keyId, spec `BLAKE2b-512=` | 401 `AUT_SIGNATURE_INVALID` (the prefix barrier) |
+| spec keyId `ns/registry/record|ed25519`, either prefix | **500** `NET_INTERNAL_ERROR`, log "failed to parse header" |
+
+- The spec's keyId format (`{namespace}/{registry}/{record}|ed25519`, `beckn.yaml` Signature description) is rejected by
+  ONIX's `parseHeader`, which requires exactly three `|`-separated parts (`core/module/handler/step.go:344`). The spec
+  says an unverifiable signature MUST get 401 NackUnauthorized; ONIX answers 500, an unclassified error. ONIX's own code
+  comments mention this class of case ("see #864 follow-up").
+- So a spec-conformant v2 BAP cannot talk to this ONIX at all, and an ONIX-style BAP fails our runner's signing checks:
+  two independent divergences, keyId shape and digest prefix.
+- The runner's `bpp-core` profile against the live adapter is FAILED with either identity. With the ONIX-shaped keyId it
+  gets as far as signature checks and then fails on the prefix, so PNNEG results are confounded by that. Observed:
+  `PNNEG-001`/`003` passed the status check and failed on the missing `Signature` header of the NACK (reason not
+  investigated), `PNNEG-002` got 500 for an unknown participant, `PNNEG-004` got 401 where 400 is expected (the signature
+  is checked before the schema), `PNNEG-005` is pending, `LIFE-001` needs a seed and ONIX has no caller module here.
+- No compatibility mode was added to the runner: it would blur what CERTIFIED means. If wanted, an interop profile with
+  a named, reported relaxation is the way.
+
+Not done: callbacks (needs ONIX's caller module and a reachable BAP), the real DeDi service or our own DeDi files as the
+registry, ONIX's schema and policy plugins, a seed for `LIFE-001`.
+
 ## Consequence for CERTIFIED
 
 The runner stays strict (`BLAKE2b-512=` only, per CON-004-04). ONIX-style signing would be a named finding, not a pass. Until the maintainers answer, a node that interoperates with ONIX-signed traffic would fail our

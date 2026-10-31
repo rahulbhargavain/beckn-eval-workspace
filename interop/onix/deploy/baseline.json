@@ -1,0 +1,20 @@
+{
+  "probe onix": "200 ACK; backend reached; signed reply yes",
+  "probe onix+spec": "401 AUT_SIGNATURE_INVALID; backend not reached; signed reply yes",
+  "probe spec": "500 NET_INTERNAL_ERROR; backend not reached; signed reply yes",
+  "probe spec+onix": "500 NET_INTERNAL_ERROR; backend not reached; signed reply yes",
+  "runner identity=onix LIFE-001": "FAIL: lifecycle scenarios need a seed (--seed FILE): what to select, who the buyer is and how pa",
+  "runner identity=onix PNNEG-001": "FAIL: header Signature: got None, want {'pattern': 'keyId=\"[^\"]+\",algorithm=\"ed25519\"'}",
+  "runner identity=onix PNNEG-002": "FAIL: status 500 not in [401]",
+  "runner identity=onix PNNEG-003": "FAIL: header Signature: got None, want {'pattern': 'keyId=\"[^\"]+\",algorithm=\"ed25519\"'}",
+  "runner identity=onix PNNEG-004": "FAIL: status 401 not in [400]",
+  "runner identity=onix PNNEG-005": "FAIL: ",
+  "runner identity=onix verdict": "FAILED",
+  "runner identity=spec LIFE-001": "FAIL: lifecycle scenarios need a seed (--seed FILE): what to select, who the buyer is and how pa",
+  "runner identity=spec PNNEG-001": "FAIL: status 500 not in [401]",
+  "runner identity=spec PNNEG-002": "FAIL: status 500 not in [401]",
+  "runner identity=spec PNNEG-003": "FAIL: header Signature: got None, want {'pattern': 'keyId=\"[^\"]+\",algorithm=\"ed25519\"'}",
+  "runner identity=spec PNNEG-004": "FAIL: status 500 not in [400]",
+  "runner identity=spec PNNEG-005": "FAIL: ",
+  "runner identity=spec verdict": "FAILED"
+}
