@@ -1,0 +1,53 @@
+name: Interop with beckn-onix
+
+# Informational: cross-verifies message signing between this workspace and ONIX's own signer and
+# validator at a pinned commit. It reports agreement and disagreement; it does not gate Pages.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["interop/**", ".github/workflows/interop-onix.yml"]
+  push:
+    branches: [main]
+    paths: ["interop/**", ".github/workflows/interop-onix.yml"]
+
+permissions:
+  contents: read
+
+env:
+  ONIX_REPO: https://github.com/beckn/beckn-onix
+  ONIX_COMMIT: b0a134b8850a5785db6a97af8349668e664493dd  # main on 2026-10-31, v1.9.2 plus later commits
+
+jobs:
+  signing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.1"
+      - run: pip install -r mockup/requirements.txt
+      - name: Fetch ONIX at the pinned commit
+        run: |
+          git clone --quiet "$ONIX_REPO" onix
+          git -C onix checkout --quiet "$ONIX_COMMIT"
+      - name: Make vectors with our signer
+        run: python interop/onix/crosscheck.py vectors "$RUNNER_TEMP/vectors.json"
+      - name: Validate and sign with ONIX's own code
+        working-directory: onix/pkg/plugin/implementation/signvalidator
+        env:
+          ONIX_VECTORS: ${{ runner.temp }}/vectors.json
+          ONIX_RESULTS: ${{ runner.temp }}/onix.json
+        run: |
+          cp "$GITHUB_WORKSPACE/interop/onix/onix_interop_test.go" ./zz_interop_test.go
+          go test -run TestInteropWithEvalWorkspace -count=1 -v .
+      - name: Compare
+        run: |
+          python interop/onix/crosscheck.py compare "$RUNNER_TEMP/vectors.json" "$RUNNER_TEMP/onix.json" \
+            --onix-commit "$ONIX_COMMIT" --out onix-signing-report.json | tee "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: onix-signing-report
+          path: onix-signing-report.json
