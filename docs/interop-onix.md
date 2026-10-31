@@ -16,17 +16,20 @@ CI: `.github/workflows/interop-onix.yml` (informational; it does not gate Pages)
 `b0a134b8850a5785db6a97af8349668e664493dd` (Go 1.26.1). Not tried: a full ONIX deployment with a
 registry; running our runner against an ONIX-fronted node.
 
-## Result (2026-10-31, run locally under WSL with Go 1.26.1)
+## Result (2026-10-31, ONIX `b0a134b`, Go 1.26.1)
 
-| Check | Result |
+Eight cases, per-case verdicts in `interop/onix/baseline.json` (CI fails if they change):
+
+| Case | What differs |
 |---|---|
-| ONIX validates our request signature | DIFFER: signature verification failed |
-| ONIX validates our chained ack signature | DIFFER: AckSignature verification failed |
-| We verify the signature ONIX makes | DIFFER |
-| We verify the chained ack signature ONIX makes | DIFFER |
-| ONIX signatures verify if our digest prefix is `BLAKE-512=` | AGREE |
+| base, v2-keyid, empty-body, non-ascii-body | ONIX rejects our request and chained ack signatures; we reject the signatures ONIX makes. Same cause in all four: the digest prefix. keyId shape, empty bodies and Devanagari text make no difference |
+| onix-prefix (signed with `BLAKE-512=`) | ONIX accepts it, our strict reading rejects it. This confirms the reverse direction against ONIX's code rather than only from its source |
+| headers-wrong, headers-missing | ONIX accepts both (signed with its prefix so only the `headers` attribute differs); our parser rejects both |
+| expired | Both reject |
+| diagnostic, every signing case | ONIX's signatures verify under our code if the prefix is `BLAKE-512=`: the prefix is the only difference |
 
-The last row isolates the cause: the only difference found is the digest prefix inside the signing string.
+The same vectors also pass through the runner's own verifier (`conformance/signing.py`) in
+`conformance/tests/test_interop_crosscheck.py`: it accepts the four spec-prefix cases and rejects `onix-prefix`.
 
 - This workspace follows `docs/Authentication_and_Trust.md` of the v2.0.0 spec: `digest: BLAKE2b-512={Base64}`.
 - ONIX at the pinned commit signs and validates `digest: BLAKE-512={Base64}`.
@@ -36,8 +39,7 @@ The last row isolates the cause: the only difference found is the digest prefix 
   CON-004-04, probably by taking the `RequestDigest` prefix for the signing string. The inconsistency between the two
   fields is real; whether ONIX's choice is intended is UNVERIFIED, so ask the maintainers (see below).
 - The ack signing string appends `request-signature: {sig}` as a fourth line in both implementations.
-- Other observed differences, not yet tested: ONIX's `Authorization` parser does not require the `headers`
-  attribute that our strict parser (and the spec's `Signature` pattern) requires.
+- ONIX's parser accepts a wrong or absent `headers` attribute (tested above), which our strict parser and the `Signature` pattern reject. Whether receivers must check it is a question for the maintainers.
 
 ## Consequence for CERTIFIED
 
@@ -47,7 +49,6 @@ recorded here and a prefix scenario waits for the maintainers' answer.
 
 ## Open items from review (2026-10-31)
 
-- Add a vector signed with `BLAKE-512=` and run it through ONIX's `Validate`/`ValidateAck` (the reverse half of the cause isolation is inferred from source), plus a v2-shaped keyId, empty and non-ASCII bodies, and negative `headers` vectors; run them against `conformance/signing.py` too.
+- Done 2026-10-31: the reverse `BLAKE-512=` vector, v2-shaped keyId, empty and non-ASCII bodies, negative `headers` and expiry vectors, runner-verifier test, DIAGNOSTIC label, committed baseline, actions pinned by SHA, 15-minute timeout.
 - ONIX's `ValidateAck` falls back to the 3-line string when the request signature passed in is empty; the spec requires the chain. UNVERIFIED whether its handler can pass an empty value.
-- Label the diagnostic row DIAGNOSTIC, not AGREE; check results against a committed baseline on re-pin; pin actions by SHA and add a timeout.
 - Draft question to the spec maintainers (not sent): in v2.0.0, `Authentication_and_Trust.md` section 3.1, CON-004-04 and the `Signature` schema give the signing-string digest as `BLAKE2b-512={Base64}`, while `RequestDigest.digest` uses `^BLAKE-512=`; beckn-onix at b0a134b uses `BLAKE-512=` in the signing string. Please confirm (a) the intended signing-string prefix, (b) whether `context.requestDigest` intentionally differs, (c) whether receivers must check the `headers` attribute.

@@ -1,0 +1,23 @@
+{
+  "base | diagnostic: peer signatures verify under prefix BLAKE-512=": "DIAGNOSTIC True",
+  "base | validates our chained ack signature": "DIFFER",
+  "base | validates our request signature": "DIFFER",
+  "base | we verify the signature the peer makes": "DIFFER",
+  "empty-body | diagnostic: peer signatures verify under prefix BLAKE-512=": "DIAGNOSTIC True",
+  "empty-body | validates our chained ack signature": "DIFFER",
+  "empty-body | validates our request signature": "DIFFER",
+  "empty-body | we verify the signature the peer makes": "DIFFER",
+  "expired | validates our request signature": "AGREE",
+  "headers-missing | validates our request signature": "DIFFER",
+  "headers-wrong | validates our request signature": "DIFFER",
+  "non-ascii-body | diagnostic: peer signatures verify under prefix BLAKE-512=": "DIAGNOSTIC True",
+  "non-ascii-body | validates our chained ack signature": "DIFFER",
+  "non-ascii-body | validates our request signature": "DIFFER",
+  "non-ascii-body | we verify the signature the peer makes": "DIFFER",
+  "onix-prefix | validates our chained ack signature": "DIFFER",
+  "onix-prefix | validates our request signature": "DIFFER",
+  "v2-keyid | diagnostic: peer signatures verify under prefix BLAKE-512=": "DIAGNOSTIC True",
+  "v2-keyid | validates our chained ack signature": "DIFFER",
+  "v2-keyid | validates our request signature": "DIFFER",
+  "v2-keyid | we verify the signature the peer makes": "DIFFER"
+}
